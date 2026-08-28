@@ -1,0 +1,33 @@
+{
+  "shell": {
+    "primaryTitle": "عيادة ديسك توب",
+    "secondaryTitle": "مكتب الاستقبال"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "todos": "المهام"
+  },
+  "dashboard": {
+    "overview": "نظرة عامة",
+    "date": "الأربعاء، 20 أغسطس 2026",
+    "upcomingAppointments": "المواعيد القادمة",
+    "todaysSchedule": "جدول اليوم",
+    "columns": {
+      "patient": "المريض",
+      "time": "الوقت",
+      "doctor": "الطبيب",
+      "status": "الحالة"
+    },
+    "status": {
+      "confirmed": "مؤكد",
+      "pending": "قيد الانتظار",
+      "cancelled": "ملغى"
+    }
+  },
+  "todos": {
+    "title": "Electron + UI5 + Vue 3",
+    "subtitle": "نظام متكامل: وحدة المهام",
+    "placeholder": "أضف مهمة...",
+    "add": "إضافة"
+  }
+}
