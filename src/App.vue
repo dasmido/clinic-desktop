@@ -4,11 +4,13 @@ import { AppShell } from './modules/shell';
 import type { NavItem } from './modules/shell';
 import { DashboardPage } from './modules/dashboard';
 import { TodoForm, TodoList } from './modules/todos';
+import { SettingsPage } from './modules/settings';
 import { t } from './i18n';
 
 const navItems: NavItem[] = [
   { key: 'dashboard', text: t('nav.dashboard'), icon: 'home' },
   { key: 'todos', text: t('nav.todos'), icon: 'list' },
+  { key: 'settings', text: t('nav.settings'), icon: 'action-settings' },
 ];
 
 const selectedKey = ref('dashboard');
@@ -29,5 +31,7 @@ const selectedKey = ref('dashboard');
         <TodoList />
       </div>
     </ui5-card>
+
+    <SettingsPage v-else-if="selectedKey === 'settings'" />
   </AppShell>
 </template>

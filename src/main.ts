@@ -1,5 +1,9 @@
 import { createApp } from 'vue';
 import App from './App.vue';
+import { initTheme } from './modules/settings';
+
+// Initialize theme from saved preference or system mode
+initTheme();
 
 // Load Arabic i18n bundles for built-in UI5 component texts (RTL follows the html[dir] attribute)
 import { setLanguage } from "@ui5/webcomponents-base/dist/config/Language.js";
@@ -25,6 +29,7 @@ import "@ui5/webcomponents/dist/TableHeaderRow.js";
 import "@ui5/webcomponents/dist/TableHeaderCell.js";
 import "@ui5/webcomponents/dist/TableRow.js";
 import "@ui5/webcomponents/dist/TableCell.js";
+import "@ui5/webcomponents/dist/Switch.js";
 
 // Fiori shell components: app header bar and collapsible side navigation
 import "@ui5/webcomponents-fiori/dist/ShellBar.js";
@@ -39,5 +44,8 @@ import "@ui5/webcomponents-icons/dist/employee.js";
 import "@ui5/webcomponents-icons/dist/appointment-2.js";
 import "@ui5/webcomponents-icons/dist/sales-order.js";
 import "@ui5/webcomponents-icons/dist/cancel.js";
+import "@ui5/webcomponents-icons/dist/action-settings.js";
+import "@ui5/webcomponents-icons/dist/palette.js";
+import "@ui5/webcomponents-icons/dist/light-mode.js";
 
 createApp(App).mount('#app');
