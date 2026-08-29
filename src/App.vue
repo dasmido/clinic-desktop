@@ -20,17 +20,19 @@ const selectedKey = ref('dashboard');
   <AppShell :nav-items="navItems" v-model:selected-key="selectedKey">
     <DashboardPage v-if="selectedKey === 'dashboard'" />
 
-    <ui5-card v-else-if="selectedKey === 'todos'" style="width: 400px; margin: 0 auto;">
-      <ui5-card-header
-        :title-text="t('todos.title')"
-        :subtitle-text="t('todos.subtitle')"
-      ></ui5-card-header>
+    <div v-else-if="selectedKey === 'todos'" class="card" style="max-width: 480px; margin: 0 auto; padding: 1.25rem;">
+      <div class="card__header" style="margin-bottom: 1rem;">
+        <div>
+          <h3 class="card__title">{{ t('todos.title') }}</h3>
+          <span class="card__subtitle">{{ t('todos.subtitle') }}</span>
+        </div>
+      </div>
 
-      <div style="padding: 1rem; display: flex; flex-direction: column; gap: 1rem;">
+      <div style="display: flex; flex-direction: column; gap: 1rem;">
         <TodoForm />
         <TodoList />
       </div>
-    </ui5-card>
+    </div>
 
     <SettingsPage v-else-if="selectedKey === 'settings'" />
   </AppShell>

@@ -1,5 +1,4 @@
 import { ref, computed } from 'vue';
-import { setTheme } from '@ui5/webcomponents-base/dist/config/Theme.js';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -27,9 +26,7 @@ export function initTheme(): void {
 export function applyTheme(mode: ThemeMode): void {
   currentTheme.value = mode;
   localStorage.setItem(STORAGE_KEY, mode);
-  const ui5Theme = mode === 'dark' ? 'sap_horizon_dark' : 'sap_horizon';
-  setTheme(ui5Theme);
-  document.documentElement.setAttribute('data-sap-theme', ui5Theme);
+  document.documentElement.setAttribute('data-theme', mode);
   if (mode === 'dark') {
     document.documentElement.classList.add('dark-theme');
   } else {

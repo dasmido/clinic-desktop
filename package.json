@@ -25,29 +25,38 @@
       "output": "release"
     },
     "mac": {
-      "target": "dmg",
-      "arch": [
-        "x64",
-        "arm64"
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ]
     },
     "win": {
-      "target": "nsis",
-      "arch": [
-        "x64"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "linux": {
-      "target": "AppImage",
-      "arch": [
-        "x64"
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     }
   },
   "dependencies": {
-    "@ui5/webcomponents": "^2.26.0",
-    "@ui5/webcomponents-fiori": "^2.26.0",
-    "@ui5/webcomponents-icons": "^2.26.0",
     "vue": "^3.5.41"
   },
   "devDependencies": {

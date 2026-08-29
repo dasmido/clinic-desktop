@@ -26,7 +26,7 @@
     }
   },
   "todos": {
-    "title": "Electron + UI5 + Vue 3",
+    "title": "Electron + Vue 3",
     "subtitle": "نظام متكامل: وحدة المهام",
     "placeholder": "أضف مهمة...",
     "add": "إضافة"

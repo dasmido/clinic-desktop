@@ -5,11 +5,11 @@ import { t } from '../../i18n';
 
 const { kpis, upcomingAppointments } = dashboardService;
 
-function statusState(status: UpcomingAppointment['status']) {
+function statusStateClass(status: UpcomingAppointment['status']) {
   switch (status) {
-    case 'Confirmed': return 'Positive';
-    case 'Pending': return 'Critical';
-    case 'Cancelled': return 'Negative';
+    case 'Confirmed': return 'badge--positive';
+    case 'Pending': return 'badge--warning';
+    case 'Cancelled': return 'badge--negative';
   }
 }
 
@@ -20,66 +20,115 @@ function statusLabel(status: UpcomingAppointment['status']) {
     case 'Cancelled': return t('dashboard.status.cancelled');
   }
 }
+
+function kpiIconSvg(icon: string) {
+  switch (icon) {
+    case 'appointment-2':
+      return '📅';
+    case 'employee':
+      return '👨‍⚕️';
+    case 'sales-order':
+      return '💵';
+    default:
+      return '📊';
+  }
+}
 </script>
 
 <template>
   <div class="dashboard">
-    <ui5-title level="H2">{{ t('dashboard.overview') }}</ui5-title>
-    <ui5-label class="dashboard__date">{{ t('dashboard.date') }}</ui5-label>
+    <h2 class="dashboard__title">{{ t('dashboard.overview') }}</h2>
+    <p class="dashboard__date">{{ t('dashboard.date') }}</p>
 
     <div class="dashboard__kpis">
-      <ui5-card v-for="kpi in kpis" :key="kpi.key" class="dashboard__kpi-card">
-        <ui5-card-header :title-text="kpi.title" :subtitle-text="kpi.subtitle">
-          <ui5-icon slot="avatar" :name="kpi.icon"></ui5-icon>
-        </ui5-card-header>
-        <div class="dashboard__kpi-value">
-          <ui5-title level="H1">{{ kpi.value }}</ui5-title>
-          <ui5-tag :design="kpi.state">{{ kpi.subtitle }}</ui5-tag>
+      <div v-for="kpi in kpis" :key="kpi.key" class="card kpi-card">
+        <div class="card__header">
+          <span class="kpi-icon">{{ kpiIconSvg(kpi.icon) }}</span>
+          <div>
+            <h3 class="card__title">{{ kpi.title }}</h3>
+            <span class="card__subtitle">{{ kpi.subtitle }}</span>
+          </div>
         </div>
-      </ui5-card>
+        <div class="kpi-value">
+          <span class="kpi-number">{{ kpi.value }}</span>
+        </div>
+      </div>
     </div>
 
-    <ui5-card class="dashboard__appointments">
-      <ui5-card-header :title-text="t('dashboard.upcomingAppointments')" :subtitle-text="t('dashboard.todaysSchedule')"></ui5-card-header>
-      <ui5-table>
-        <ui5-table-header-row slot="headerRow">
-          <ui5-table-header-cell>{{ t('dashboard.columns.patient') }}</ui5-table-header-cell>
-          <ui5-table-header-cell>{{ t('dashboard.columns.time') }}</ui5-table-header-cell>
-          <ui5-table-header-cell>{{ t('dashboard.columns.doctor') }}</ui5-table-header-cell>
-          <ui5-table-header-cell>{{ t('dashboard.columns.status') }}</ui5-table-header-cell>
-        </ui5-table-header-row>
-        <ui5-table-row v-for="appt in upcomingAppointments" :key="appt.id">
-          <ui5-table-cell>{{ appt.patient }}</ui5-table-cell>
-          <ui5-table-cell>{{ appt.time }}</ui5-table-cell>
-          <ui5-table-cell>{{ appt.doctor }}</ui5-table-cell>
-          <ui5-table-cell>
-            <ui5-tag :design="statusState(appt.status)">{{ statusLabel(appt.status) }}</ui5-tag>
-          </ui5-table-cell>
-        </ui5-table-row>
-      </ui5-table>
-    </ui5-card>
+    <div class="card dashboard__appointments">
+      <div class="card__header">
+        <div>
+          <h3 class="card__title">{{ t('dashboard.upcomingAppointments') }}</h3>
+          <span class="card__subtitle">{{ t('dashboard.todaysSchedule') }}</span>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('dashboard.columns.patient') }}</th>
+              <th>{{ t('dashboard.columns.time') }}</th>
+              <th>{{ t('dashboard.columns.doctor') }}</th>
+              <th>{{ t('dashboard.columns.status') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="appt in upcomingAppointments" :key="appt.id">
+              <td>{{ appt.patient }}</td>
+              <td>{{ appt.time }}</td>
+              <td>{{ appt.doctor }}</td>
+              <td>
+                <span class="badge" :class="statusStateClass(appt.status)">
+                  {{ statusLabel(appt.status) }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.dashboard__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
 .dashboard__date {
-  display: block;
-  color: var(--sapContent_LabelColor);
-  margin-bottom: 1.5rem;
+  margin: 0.25rem 0 1.5rem 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
 }
 
 .dashboard__kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
+  gap: 1.25rem;
   margin-bottom: 1.5rem;
 }
 
-.dashboard__kpi-value {
-  padding: 1rem;
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
+.kpi-card {
+  padding: 1.25rem;
+}
+
+.kpi-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.kpi-value {
+  margin-top: 1rem;
+}
+
+.kpi-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary-color);
 }
 
 .dashboard__appointments {

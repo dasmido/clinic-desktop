@@ -8,14 +8,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      vue({
-        template: {
-          compilerOptions: {
-            // Tell Vue to treat tags starting with 'ui5-' as native custom elements
-            isCustomElement: (tag) => tag.startsWith('ui5-')
-          }
-        }
-      }),
+      vue(),
       ...(isElectron
         ? [
             electron({

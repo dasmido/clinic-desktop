@@ -4,40 +4,38 @@ import { t } from '../../i18n';
 
 const { isDark, toggleTheme } = useTheme();
 
-function onSwitchChange(event: Event) {
-  const target = event.target as HTMLElement & { checked: boolean };
-  if (target.checked !== isDark.value) {
-    toggleTheme();
-  }
+function onToggleChange() {
+  toggleTheme();
 }
 </script>
 
 <template>
   <div class="settings-page">
     <div class="settings-page__header">
-      <ui5-title level="H2">{{ t('settings.title') }}</ui5-title>
-      <ui5-label class="settings-page__subtitle">{{ t('settings.subtitle') }}</ui5-label>
+      <h2 class="settings-page__title">{{ t('settings.title') }}</h2>
+      <p class="settings-page__subtitle">{{ t('settings.subtitle') }}</p>
     </div>
 
     <div class="settings-page__content">
       <!-- Appearance Card -->
-      <ui5-card class="settings-card">
-        <ui5-card-header
-          :title-text="t('settings.appearance.title')"
-          :subtitle-text="t('settings.appearance.subtitle')"
-        >
-          <ui5-icon name="palette" slot="avatar"></ui5-icon>
-        </ui5-card-header>
+      <div class="card settings-card">
+        <div class="card__header">
+          <span class="card__icon">🎨</span>
+          <div>
+            <h3 class="card__title">{{ t('settings.appearance.title') }}</h3>
+            <span class="card__subtitle">{{ t('settings.appearance.subtitle') }}</span>
+          </div>
+        </div>
 
         <div class="settings-card__body">
           <div class="settings-option">
             <div class="settings-option__info">
               <div class="settings-option__title-row">
-                <ui5-icon :name="isDark ? 'palette' : 'light-mode'" class="option-icon"></ui5-icon>
+                <span class="option-icon">{{ isDark ? '🌙' : '☀️' }}</span>
                 <span class="settings-option__title">{{ t('settings.appearance.darkMode') }}</span>
-                <ui5-tag :color-scheme="isDark ? '1' : '8'" class="status-tag">
+                <span class="badge" :class="isDark ? 'badge--info' : 'badge--neutral'">
                   {{ isDark ? t('settings.appearance.dark') : t('settings.appearance.light') }}
-                </ui5-tag>
+                </span>
               </div>
               <p class="settings-option__description">
                 {{ t('settings.appearance.darkModeDesc') }}
@@ -45,24 +43,27 @@ function onSwitchChange(event: Event) {
             </div>
 
             <div class="settings-option__control">
-              <ui5-switch
-                :checked="isDark"
-                text-on="مفعل"
-                text-off="معطل"
-                @change="onSwitchChange"
-              ></ui5-switch>
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  :checked="isDark"
+                  @change="onToggleChange"
+                />
+                <span class="toggle-slider"></span>
+              </label>
             </div>
           </div>
         </div>
-      </ui5-card>
+      </div>
 
       <!-- System Information Card -->
-      <ui5-card class="settings-card">
-        <ui5-card-header
-          :title-text="t('settings.general.title')"
-        >
-          <ui5-icon name="action-settings" slot="avatar"></ui5-icon>
-        </ui5-card-header>
+      <div class="card settings-card">
+        <div class="card__header">
+          <span class="card__icon">⚙️</span>
+          <div>
+            <h3 class="card__title">{{ t('settings.general.title') }}</h3>
+          </div>
+        </div>
 
         <div class="settings-card__body">
           <div class="settings-info-grid">
@@ -76,11 +77,11 @@ function onSwitchChange(event: Event) {
             </div>
             <div class="info-item">
               <span class="info-label">{{ t('settings.appearance.activeTheme') }}</span>
-              <span class="info-value">{{ isDark ? 'SAP Horizon Dark' : 'SAP Horizon Light' }}</span>
+              <span class="info-value">{{ isDark ? 'الوضع الداكن (Dark)' : 'الوضع الفاتح (Light)' }}</span>
             </div>
           </div>
         </div>
-      </ui5-card>
+      </div>
     </div>
   </div>
 </template>
@@ -100,8 +101,17 @@ function onSwitchChange(event: Event) {
   gap: 0.25rem;
 }
 
+.settings-page__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
 .settings-page__subtitle {
-  opacity: 0.8;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
 }
 
 .settings-page__content {
@@ -112,6 +122,10 @@ function onSwitchChange(event: Event) {
 
 .settings-card {
   width: 100%;
+}
+
+.card__icon {
+  font-size: 1.5rem;
 }
 
 .settings-card__body {
@@ -146,11 +160,7 @@ function onSwitchChange(event: Event) {
 .settings-option__description {
   margin: 0;
   font-size: 0.875rem;
-  color: var(--sapContent_LabelColor, #6a6d70);
-}
-
-.status-tag {
-  margin-inline-start: 0.5rem;
+  color: var(--text-muted);
 }
 
 .settings-info-grid {
@@ -165,16 +175,62 @@ function onSwitchChange(event: Event) {
   gap: 0.25rem;
   padding: 0.75rem;
   border-radius: 0.375rem;
-  background: var(--sapGroup_ContentBackground, rgba(0, 0, 0, 0.03));
+  background: var(--bg-subtle, rgba(0, 0, 0, 0.03));
 }
 
 .info-label {
   font-size: 0.8rem;
-  color: var(--sapContent_LabelColor, #6a6d70);
+  color: var(--text-muted);
 }
 
 .info-value {
   font-weight: 600;
   font-size: 0.95rem;
+}
+
+/* Custom Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--border-color, #ccc);
+  transition: 0.25s;
+  border-radius: 26px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.25s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: var(--primary-color, #0070f3);
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(22px);
 }
 </style>
