@@ -4,13 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
-  "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc -b && vite build",
-    "preview": "vite preview",
-    "dist:mac": "npm run build && electron-builder --mac",
-    "dist:win": "npm run build && electron-builder --win",
-    "dist:linux": "npm run build && electron-builder --linux"
+    "scripts": {
+      "dev": "vite",
+      "dev:electron": "vite --mode electron",
+      "build": "vue-tsc -b && vite build",
+      "build:electron": "vue-tsc -b && vite build --mode electron",
+      "preview": "vite preview",
+      "dist:mac": "npm run build:electron && electron-builder --mac",
+      "dist:win": "npm run build:electron && electron-builder --win",
+      "dist:linux": "npm run build:electron && electron-builder --linux"
   },
   "build": {
     "appId": "dev.dasmido.clinicdesktop",
