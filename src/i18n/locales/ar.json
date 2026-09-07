@@ -1,0 +1,30 @@
+{
+  "home": {
+    "title": "عيادة سطح المكتب",
+    "subtitle": "جاهز لميزتك التالية.",
+    "cta": "ابدأ الآن"
+  },
+  "layout": {
+    "toggleSidebar": "تبديل الشريط الجانبي"
+  },
+  "sidebar": {
+    "inbox": "الوارد",
+    "issues": "المشكلات",
+    "activity": "النشاط",
+    "settings": "الإعدادات",
+    "settingsGeneral": "عام",
+    "settingsTeam": "الفريق",
+    "settingsBilling": "الفوترة",
+    "createTeam": "إنشاء فريق"
+  },
+  "user": {
+    "profile": "الملف الشخصي",
+    "billing": "الفوترة",
+    "settings": "الإعدادات",
+    "appearance": "المظهر",
+    "light": "فاتح",
+    "dark": "داكن",
+    "github": "جيت هاب",
+    "logout": "تسجيل الخروج"
+  }
+}
