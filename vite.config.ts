@@ -1,6 +1,6 @@
-// vite.config.ts
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import ui from '@nuxt/ui/vite';
 import electron from 'vite-plugin-electron/simple';
 
 export default defineConfig(({ mode }) => {
@@ -12,6 +12,9 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       vue(),
+      ui({
+        router: false,
+      }),
       ...(isElectron
         ? [
             electron({
