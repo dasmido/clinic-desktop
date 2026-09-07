@@ -42,24 +42,24 @@ const teamsItems = computed<DropdownMenuItem[][]>(() => {
 function getItems(state: 'collapsed' | 'expanded') {
   return [
     {
-      label: t('sidebar.inbox'),
-      icon: 'i-lucide-inbox',
-      //badge: '4'
+      label: t('sidebar.patients'),
+      icon: 'i-lucide-users',
+      to: '/patients'
+    },
+    {
+      label: t('sidebar.appointments'),
+      icon: 'i-lucide-calendar-days',
+      to: '/appointments'
+    },
+    {
+      label: t('sidebar.finance'),
+      icon: 'i-lucide-wallet-cards',
+      to: '/finance'
     },
     {
       label: t('sidebar.settings'),
       icon: 'i-lucide-settings',
-      defaultOpen: true,
-      children:
-        state === 'expanded'
-          ? [
-              {
-                label: t('sidebar.settingsGeneral'),
-                icon: 'i-lucide-house',
-                to: '/settings/general'
-              }
-            ]
-          : []
+      to: '/settings/general'
     }
   ] satisfies NavigationMenuItem[]
 }

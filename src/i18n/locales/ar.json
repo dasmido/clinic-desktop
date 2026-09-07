@@ -13,10 +13,19 @@
     "arabic": "العربية",
     "save": "حفظ التغييرات"
   },
+  "sections": {
+    "patients": "المرضى",
+    "appointments": "المواعيد",
+    "finance": "المالية",
+    "empty": "لا توجد بيانات لعرضها حالياً."
+  },
   "layout": {
     "toggleSidebar": "تبديل الشريط الجانبي"
   },
   "sidebar": {
+    "patients": "المرضى",
+    "appointments": "المواعيد",
+    "finance": "المالية",
     "inbox": "الوارد",
     "issues": "المشكلات",
     "activity": "النشاط",
