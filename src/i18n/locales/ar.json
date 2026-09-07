@@ -4,6 +4,15 @@
     "subtitle": "جاهز لميزتك التالية.",
     "cta": "ابدأ الآن"
   },
+  "settingsGeneral": {
+    "title": "الإعدادات العامة",
+    "subtitle": "إدارة إعدادات العيادة الأساسية.",
+    "clinicName": "اسم العيادة",
+    "clinicNamePlaceholder": "أدخل اسم العيادة",
+    "language": "اللغة",
+    "arabic": "العربية",
+    "save": "حفظ التغييرات"
+  },
   "layout": {
     "toggleSidebar": "تبديل الشريط الجانبي"
   },

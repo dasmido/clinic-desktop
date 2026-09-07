@@ -12,24 +12,10 @@ const colorMode = useColorMode()
 
 const teams = ref([
   {
-    label: 'Nuxt',
+    label: 'MyClinic',
     avatar: {
       src: 'https://github.com/nuxt.png',
       alt: 'Nuxt'
-    }
-  },
-  {
-    label: 'Vue',
-    avatar: {
-      src: 'https://github.com/vuejs.png',
-      alt: 'Vue'
-    }
-  },
-  {
-    label: 'UnJS',
-    avatar: {
-      src: 'https://github.com/unjs.png',
-      alt: 'UnJS'
     }
   }
 ])
@@ -58,15 +44,7 @@ function getItems(state: 'collapsed' | 'expanded') {
     {
       label: t('sidebar.inbox'),
       icon: 'i-lucide-inbox',
-      badge: '4'
-    },
-    {
-      label: t('sidebar.issues'),
-      icon: 'i-lucide-square-dot'
-    },
-    {
-      label: t('sidebar.activity'),
-      icon: 'i-lucide-square-activity'
+      //badge: '4'
     },
     {
       label: t('sidebar.settings'),
@@ -77,15 +55,8 @@ function getItems(state: 'collapsed' | 'expanded') {
           ? [
               {
                 label: t('sidebar.settingsGeneral'),
-                icon: 'i-lucide-house'
-              },
-              {
-                label: t('sidebar.settingsTeam'),
-                icon: 'i-lucide-users'
-              },
-              {
-                label: t('sidebar.settingsBilling'),
-                icon: 'i-lucide-credit-card'
+                icon: 'i-lucide-house',
+                to: '/settings/general'
               }
             ]
           : []
@@ -94,7 +65,7 @@ function getItems(state: 'collapsed' | 'expanded') {
 }
 
 const user = ref({
-  name: 'Benjamin Canac',
+  name: 'Mohammed J.',
   avatar: {
     src: 'https://github.com/benjamincanac.png',
     alt: 'Benjamin Canac'

@@ -24,11 +24,8 @@ const open = ref(true)
           />
         </div>
 
-        <main class="flex-1 flex flex-col items-center justify-center gap-4 p-4">
-          <h1 class="text-2xl font-bold">{{ t('home.title') }}</h1>
-          <p>{{ t('home.subtitle') }}</p>
-
-          <UButton :label="t('home.cta')" />
+        <main class="flex-1 overflow-auto p-4">
+          <RouterView />
         </main>
       </div>
     </div>

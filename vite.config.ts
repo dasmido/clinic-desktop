@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       ui({
-        router: false,
+        router: true,
       }),
       ...(isElectron
         ? [
