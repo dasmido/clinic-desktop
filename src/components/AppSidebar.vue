@@ -39,7 +39,7 @@ const teamsItems = computed<DropdownMenuItem[][]>(() => {
   ]
 })
 
-function getItems(state: 'collapsed' | 'expanded') {
+function getItems() {
   return [
     {
       label: t('sidebar.patients'),
@@ -175,7 +175,7 @@ defineShortcuts(extractShortcuts(teamsItems.value))
     <template #default="{ state }">
       <UNavigationMenu
         :key="state"
-        :items="getItems(state)"
+        :items="getItems()"
         orientation="vertical"
         :ui="{ link: 'p-1.5 overflow-hidden' }"
       />
