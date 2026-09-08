@@ -55,6 +55,18 @@ async function ensureApplicationDatabase(instance: EmbeddedPostgres) {
   }
 }
 
+async function ensureUsersTable() {
+  await queryDatabase(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'staff',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+}
+
 export async function startDatabase() {
   if (postgres) return postgres;
 
@@ -69,6 +81,7 @@ export async function startDatabase() {
     await instance.start();
     await ensureApplicationDatabase(instance);
     postgres = instance;
+    await ensureUsersTable();
     return instance;
   })();
 

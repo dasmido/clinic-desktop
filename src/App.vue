@@ -2,15 +2,18 @@
 import { ref } from 'vue'
 import { ar } from '@nuxt/ui/locale'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 
 const { t } = useI18n()
+const route = useRoute()
 
 const open = ref(true)
 </script>
 
 <template>
   <UApp :locale="ar">
-    <div class="flex flex-1 h-screen">
+    <RouterView v-if="route.meta.public" />
+    <div v-else class="flex flex-1 h-screen">
       <AppSidebar v-model:open="open" />
 
       <div class="flex-1 flex flex-col">

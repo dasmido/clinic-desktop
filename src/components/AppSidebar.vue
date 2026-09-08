@@ -2,9 +2,13 @@
 import { ref, computed } from 'vue'
 import { useColorMode } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
+import { useAuth } from '@/lib/auth'
 
 const { t } = useI18n()
+const router = useRouter()
+const { currentUser, logout } = useAuth()
 
 const open = defineModel<boolean>('open', { default: true })
 
@@ -64,13 +68,18 @@ function getItems() {
   ] satisfies NavigationMenuItem[]
 }
 
-const user = ref({
-  name: 'Mohammed J.',
+const user = computed(() => ({
+  name: currentUser.value?.username ?? '',
   avatar: {
-    src: 'https://github.com/benjamincanac.png',
-    alt: 'Benjamin Canac'
+    src: '',
+    alt: currentUser.value?.username ?? ''
   }
-})
+}))
+
+async function onLogout() {
+  await logout()
+  await router.push('/login')
+}
 
 const userItems = computed<DropdownMenuItem[][]>(() => [
   [
@@ -133,7 +142,8 @@ const userItems = computed<DropdownMenuItem[][]>(() => [
     },
     {
       label: t('user.logout'),
-      icon: 'i-lucide-log-out'
+      icon: 'i-lucide-log-out',
+      onSelect: onLogout
     }
   ]
 ])
