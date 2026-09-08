@@ -14,18 +14,18 @@
     "save": "حفظ التغييرات"
   },
   "sections": {
-    "patients": "المرضى",
+    "patients": "المراجعين",
     "appointments": "المواعيد",
-    "finance": "المالية",
+    "finance": "الحسابات",
     "empty": "لا توجد بيانات لعرضها حالياً."
   },
   "layout": {
     "toggleSidebar": "تبديل الشريط الجانبي"
   },
   "sidebar": {
-    "patients": "المرضى",
+    "patients": "المراجعين",
     "appointments": "المواعيد",
-    "finance": "المالية",
+    "finance": "الحسابات",
     "inbox": "الوارد",
     "issues": "المشكلات",
     "activity": "النشاط",
