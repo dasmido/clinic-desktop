@@ -123,17 +123,25 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   registerDatabaseHandlers();
   registerAuthHandlers();
-  await startDatabase();
   createWindow();
+  // Boot Postgres in parallel; IPC handlers await the shared startup promise as needed.
+  void startDatabase();
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => {
-  void stopDatabase();
+let isQuitting = false;
+
+app.on('before-quit', (event) => {
+  if (isQuitting) return;
+
+  // Defer quitting until the embedded Postgres instance has shut down cleanly.
+  event.preventDefault();
+  isQuitting = true;
+  void stopDatabase().finally(() => app.quit());
 });
