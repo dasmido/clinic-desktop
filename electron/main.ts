@@ -1,10 +1,13 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getDatabase, queryDatabase, startDatabase, stopDatabase, type QueryValue } from './database.js';
 import {
   countUsers,
   createUser,
+  deleteUser,
   listUsers,
   verifyUserCredentials,
   type AuthUser,
@@ -38,6 +41,66 @@ function registerDatabaseHandlers() {
     }
 
     return queryDatabase(text, values);
+  });
+}
+
+function getPatientFilesDirectory(medicalRecordId: number) {
+  return path.join(app.getPath('userData'), 'patient-files', String(medicalRecordId));
+}
+
+function registerPatientFileHandlers() {
+  ipcMain.handle('patient-files:add', async (_event, medicalRecordId: number) => {
+    if (!currentSessionUser) throw new Error('Please sign in before adding an attachment.');
+    if (!Number.isInteger(medicalRecordId) || medicalRecordId < 1) throw new Error('Invalid medical record.');
+    if (!win) throw new Error('Application window is not available.');
+
+    const selected = await dialog.showOpenDialog(win, {
+      title: 'اختيار نتائج التحاليل أو الفحوصات',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'المستندات والصور', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'doc', 'docx', 'xls', 'xlsx'] }],
+    });
+    if (selected.canceled) return [];
+
+    const record = await queryDatabase('SELECT id FROM patient_medical_records WHERE id = $1', [medicalRecordId]);
+    if (!record.rowCount) throw new Error('Medical record was not found.');
+
+    const directory = getPatientFilesDirectory(medicalRecordId);
+    await fs.mkdir(directory, { recursive: true });
+
+    const attachments = [];
+    for (const sourcePath of selected.filePaths) {
+      const stat = await fs.stat(sourcePath);
+      if (!stat.isFile()) continue;
+      if (stat.size > 20 * 1024 * 1024) throw new Error('Each attachment must be 20 MB or smaller.');
+
+      const originalName = path.basename(sourcePath);
+      const storedName = `${crypto.randomUUID()}${path.extname(originalName).toLowerCase()}`;
+      await fs.copyFile(sourcePath, path.join(directory, storedName));
+      attachments.push({ originalName, storedName, fileSizeBytes: stat.size });
+    }
+    return attachments;
+  });
+
+  ipcMain.handle('patient-files:open', async (_event, medicalRecordId: number, storedName: string) => {
+    if (!currentSessionUser) throw new Error('Please sign in before opening an attachment.');
+    if (!Number.isInteger(medicalRecordId) || !/^[a-f0-9-]+\.[a-z0-9]+$/i.test(storedName)) throw new Error('Invalid attachment.');
+    const filePath = path.join(getPatientFilesDirectory(medicalRecordId), storedName);
+    const error = await shell.openPath(filePath);
+    if (error) throw new Error(error);
+  });
+
+  ipcMain.handle('patient-files:delete', async (_event, medicalRecordId: number, storedName: string) => {
+    if (!currentSessionUser) throw new Error('Please sign in before deleting an attachment.');
+    if (!Number.isInteger(medicalRecordId) || !/^[a-f0-9-]+\.[a-z0-9]+$/i.test(storedName)) throw new Error('Invalid attachment.');
+    await fs.unlink(path.join(getPatientFilesDirectory(medicalRecordId), storedName)).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error;
+    });
+  });
+
+  ipcMain.handle('patient-files:delete-record', async (_event, medicalRecordId: number) => {
+    if (!currentSessionUser) throw new Error('Please sign in before deleting a medical record.');
+    if (!Number.isInteger(medicalRecordId) || medicalRecordId < 1) throw new Error('Invalid medical record.');
+    await fs.rm(getPatientFilesDirectory(medicalRecordId), { recursive: true, force: true });
   });
 }
 
@@ -116,6 +179,19 @@ function registerAuthHandlers() {
     }
     return listUsers(await getDatabase());
   });
+
+  ipcMain.handle('auth:delete-user', async (_event, userId: number) => {
+    if (currentSessionUser?.role !== 'admin') throw new Error('Only an administrator can delete user accounts.');
+    if (!Number.isInteger(userId) || userId < 1) throw new Error('Invalid user account.');
+    if (userId === currentSessionUser.id) throw new Error('You cannot delete the account currently signed in.');
+
+    const db = await getDatabase();
+    const target = await db.selectFrom('users').select(['role']).where('id', '=', userId).executeTakeFirst();
+    if (!target) throw new Error('User account was not found.');
+    if (target.role === 'admin' && (await countUsers(db)) === 1) throw new Error('The last administrator account cannot be deleted.');
+    await deleteUser(db, userId);
+    return true;
+  });
 }
 
 function createWindow() {
@@ -138,6 +214,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   registerDatabaseHandlers();
+  registerPatientFileHandlers();
   registerAuthHandlers();
   createWindow();
   // Boot Postgres in parallel; IPC handlers await the shared startup promise as needed.

@@ -84,6 +84,31 @@ export type FinancialTransactionsTable = {
   created_at: Timestamp;
 };
 
+export type PatientMedicalRecordsTable = {
+  id: Generated<number>;
+  patient_id: number;
+  recorded_by_user_id: number | null;
+  visit_date: Timestamp;
+  chief_complaint: ColumnType<string, string | undefined, string>;
+  diagnosis: ColumnType<string, string | undefined, string>;
+  treatment_plan: ColumnType<string, string | undefined, string>;
+  clinical_notes: ColumnType<string, string | undefined, string>;
+  blood_pressure: ColumnType<string, string | undefined, string>;
+  temperature_celsius: number | null;
+  weight_kg: number | null;
+  created_at: Timestamp;
+};
+
+export type PatientRecordAttachmentsTable = {
+  id: Generated<number>;
+  medical_record_id: number;
+  original_name: string;
+  stored_name: string;
+  mime_type: string;
+  file_size_bytes: number;
+  created_at: Timestamp;
+};
+
 export type Database = {
   users: UsersTable;
   patients: PatientsTable;
@@ -93,6 +118,8 @@ export type Database = {
   inventory_items: InventoryItemsTable;
   inventory_movements: InventoryMovementsTable;
   financial_transactions: FinancialTransactionsTable;
+  patient_medical_records: PatientMedicalRecordsTable;
+  patient_record_attachments: PatientRecordAttachmentsTable;
 };
 
 export type User = Selectable<UsersTable>;

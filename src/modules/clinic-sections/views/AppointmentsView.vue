@@ -135,6 +135,20 @@ async function saveAppointment() {
   }
 }
 
+async function deleteAppointment() {
+  if (!editingAppointment.value || !window.confirm('حذف هذا الموعد نهائياً؟')) return
+  isLoading.value = true
+  try {
+    await databaseQuery('DELETE FROM appointments WHERE id = $1', [editingAppointment.value.id])
+    isModalOpen.value = false
+    await loadSchedule()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'تعذر حذف الموعد.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
 watch(selectedDate, loadSchedule)
 onMounted(async () => { await Promise.all([loadSchedule(), loadPatients(), loadDoctors()]) })
 </script>
@@ -174,7 +188,7 @@ onMounted(async () => { await Promise.all([loadSchedule(), loadPatients(), loadD
         <div class="grid gap-4 sm:grid-cols-2"><UFormField label="بداية الموعد" required><UInput v-model="form.startsAt" type="datetime-local" class="w-full" /></UFormField><UFormField label="نهاية الموعد" required><UInput v-model="form.endsAt" type="datetime-local" class="w-full" /></UFormField></div>
         <UFormField label="الحالة"><USelect v-model="form.status" :items="Object.entries(statusMeta).map(([value, meta]) => ({ label: meta.label, value }))" class="w-full" /></UFormField>
         <UFormField label="ملاحظات"><UTextarea v-model="form.notes" class="w-full" :rows="3" /></UFormField><p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p>
-        <div class="flex justify-end gap-2 pt-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isModalOpen = false" /><UButton type="submit" :loading="isLoading" :label="editingAppointment ? 'حفظ التعديلات' : 'إضافة الموعد'" /></div>
+        <div class="flex justify-between gap-2 pt-2"><UButton v-if="editingAppointment" icon="i-lucide-trash-2" color="error" variant="ghost" aria-label="حذف الموعد" :loading="isLoading" @click="deleteAppointment" /><span class="flex gap-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isModalOpen = false" /><UButton type="submit" :loading="isLoading" :label="editingAppointment ? 'حفظ التعديلات' : 'إضافة الموعد'" /></span></div>
       </form></template>
     </UModal>
   </section>

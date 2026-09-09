@@ -48,6 +48,13 @@ export async function createUser(
     .executeTakeFirstOrThrow();
 }
 
+export async function deleteUser(db: Kysely<Database>, userId: number) {
+  return db
+    .deleteFrom('users')
+    .where('id', '=', userId)
+    .executeTakeFirst();
+}
+
 export async function verifyUserCredentials(
   db: Kysely<Database>,
   username: string,

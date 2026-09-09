@@ -59,6 +59,19 @@ async function createUser() {
   }
 }
 
+async function deleteUser(user: AuthUser) {
+  if (!window.confirm(`حذف حساب ${user.username}؟`)) return
+  isLoading.value = true
+  try {
+    await window.electronAPI.auth.deleteUser(user.id)
+    await loadUsers()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'تعذر حذف حساب المستخدم.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
 onMounted(async () => {
   if (currentUser.value?.role !== 'admin') {
     await router.replace('/')
@@ -83,8 +96,8 @@ onMounted(async () => {
       <div v-if="isLoading && !users.length" class="flex min-h-56 items-center justify-center"><UIcon name="i-lucide-loader-circle" class="size-5 animate-spin text-muted" /></div>
       <div v-else class="overflow-x-auto">
         <table class="w-full min-w-130 text-right text-sm">
-          <thead class="border-b border-default bg-elevated/55 text-xs font-medium text-muted"><tr><th class="px-5 py-3">المستخدم</th><th class="px-5 py-3">الدور</th><th class="px-5 py-3">الصلاحية</th></tr></thead>
-          <tbody class="divide-y divide-default"><tr v-for="user in users" :key="user.id"><td class="px-5 py-4 font-semibold text-highlighted">{{ user.username }}</td><td class="px-5 py-4"><span class="inline-flex bg-elevated px-2.5 py-1 text-xs font-medium text-toned">{{ roleLabels[user.role] }}</span></td><td class="px-5 py-4 text-muted">{{ user.role === 'admin' ? 'إدارة المستخدمين والإعدادات' : 'الوصول التشغيلي للعيادة' }}</td></tr></tbody>
+          <thead class="border-b border-default bg-elevated/55 text-xs font-medium text-muted"><tr><th class="px-5 py-3">المستخدم</th><th class="px-5 py-3">الدور</th><th class="px-5 py-3">الصلاحية</th><th class="w-16 px-3 py-3"></th></tr></thead>
+          <tbody class="divide-y divide-default"><tr v-for="user in users" :key="user.id"><td class="px-5 py-4 font-semibold text-highlighted">{{ user.username }}</td><td class="px-5 py-4"><span class="inline-flex bg-elevated px-2.5 py-1 text-xs font-medium text-toned">{{ roleLabels[user.role] }}</span></td><td class="px-5 py-4 text-muted">{{ user.role === 'admin' ? 'إدارة المستخدمين والإعدادات' : 'الوصول التشغيلي للعيادة' }}</td><td class="px-3 py-3"><UButton v-if="user.id !== currentUser?.id" icon="i-lucide-trash-2" color="error" variant="ghost" aria-label="حذف المستخدم" @click="deleteUser(user)" /></td></tr></tbody>
         </table>
       </div>
     </div>

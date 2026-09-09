@@ -85,6 +85,20 @@ async function savePatient() {
   }
 }
 
+async function deletePatient() {
+  if (!editingPatient.value || !window.confirm(`حذف سجل ${editingPatient.value.full_name} وجميع مواعيده وسجله الطبي؟`)) return
+  isLoading.value = true
+  try {
+    await databaseQuery('DELETE FROM patients WHERE id = $1', [editingPatient.value.id])
+    isModalOpen.value = false
+    await loadPatients()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'تعذر حذف سجل المراجع.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
 onMounted(loadPatients)
 </script>
 
@@ -117,7 +131,7 @@ onMounted(loadPatients)
         <table class="w-full min-w-165 text-right text-sm">
           <thead class="border-b border-default bg-elevated/55 text-xs font-medium text-muted">
             <tr>
-              <th class="px-5 py-3">المراجع</th><th class="px-5 py-3">الهاتف</th><th class="px-5 py-3">تاريخ الميلاد</th><th class="px-5 py-3">ملاحظات</th><th class="w-16 px-3 py-3"></th>
+              <th class="px-5 py-3">المراجع</th><th class="px-5 py-3">الهاتف</th><th class="px-5 py-3">تاريخ الميلاد</th><th class="px-5 py-3">ملاحظات</th><th class="w-28 px-3 py-3"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-default">
@@ -126,7 +140,7 @@ onMounted(loadPatients)
               <td class="px-5 py-4 text-toned" dir="ltr">{{ patient.phone }}</td>
               <td class="px-5 py-4 text-muted">{{ patient.date_of_birth || '—' }}</td>
               <td class="max-w-70 truncate px-5 py-4 text-muted">{{ patient.notes || '—' }}</td>
-              <td class="px-3 py-3"><UButton icon="i-lucide-pencil" color="neutral" variant="ghost" aria-label="تعديل المراجع" @click="openEditModal(patient)" /></td>
+              <td class="px-3 py-3"><div class="flex gap-1"><UButton icon="i-lucide-notebook-pen" color="neutral" variant="ghost" aria-label="السجل الطبي" :to="`/patients/${patient.id}/records`" /><UButton icon="i-lucide-pencil" color="neutral" variant="ghost" aria-label="تعديل المراجع" @click="openEditModal(patient)" /></div></td>
             </tr>
           </tbody>
         </table>
@@ -141,7 +155,7 @@ onMounted(loadPatients)
           <UFormField label="تاريخ الميلاد"><UInput v-model="form.dateOfBirth" type="date" class="w-full" /></UFormField>
           <UFormField label="ملاحظات"><UTextarea v-model="form.notes" class="w-full" :rows="3" /></UFormField>
           <p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p>
-          <div class="flex justify-end gap-2 pt-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isModalOpen = false" /><UButton type="submit" :loading="isLoading" :label="editingPatient ? 'حفظ التعديلات' : 'إضافة المراجع'" /></div>
+          <div class="flex justify-between gap-2 pt-2"><UButton v-if="editingPatient" icon="i-lucide-trash-2" color="error" variant="ghost" aria-label="حذف المراجع" :loading="isLoading" @click="deletePatient" /><span class="flex gap-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isModalOpen = false" /><UButton type="submit" :loading="isLoading" :label="editingPatient ? 'حفظ التعديلات' : 'إضافة المراجع'" /></span></div>
         </form>
       </template>
     </UModal>

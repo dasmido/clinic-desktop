@@ -51,6 +51,32 @@ export type FinancialTransaction = {
   created_at: string;
 };
 
+export type MedicalRecord = {
+  id: number;
+  patient_id: number;
+  recorded_by_user_id: number | null;
+  recorded_by_name: string | null;
+  visit_date: string;
+  chief_complaint: string;
+  diagnosis: string;
+  treatment_plan: string;
+  clinical_notes: string;
+  blood_pressure: string;
+  temperature_celsius: string | null;
+  weight_kg: string | null;
+  created_at: string;
+};
+
+export type MedicalRecordAttachment = {
+  id: number;
+  medical_record_id: number;
+  original_name: string;
+  stored_name: string;
+  mime_type: string;
+  file_size_bytes: string;
+  created_at: string;
+};
+
 export async function databaseQuery<Row>(text: string, values: unknown[] = []): Promise<Row[]> {
   const result = await window.electronAPI.database.query(text, values);
   return result.rows as Row[];

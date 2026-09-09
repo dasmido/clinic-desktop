@@ -13,6 +13,12 @@ type AuthUser = {
 
 type UserRole = 'doctor' | 'nurse' | 'lab' | 'pharmacy' | 'moderator' | 'admin';
 
+type PatientFileUpload = {
+  originalName: string;
+  storedName: string;
+  fileSizeBytes: number;
+};
+
 declare global {
   interface Window {
     electronAPI: {
@@ -28,6 +34,13 @@ declare global {
         getCurrentUser(): Promise<AuthUser | null>;
         createUser(username: string, password: string, role: UserRole): Promise<AuthUser>;
         listUsers(): Promise<AuthUser[]>;
+        deleteUser(userId: number): Promise<boolean>;
+      };
+      patientFiles: {
+        add(medicalRecordId: number): Promise<PatientFileUpload[]>;
+        open(medicalRecordId: number, storedName: string): Promise<void>;
+        delete(medicalRecordId: number, storedName: string): Promise<void>;
+        deleteRecord(medicalRecordId: number): Promise<void>;
       };
     };
   }
