@@ -16,7 +16,8 @@ const require = createRequire(import.meta.url);
 const BIN_PERMISSIONS = 0o555;
 
 type PostgresInstance = {
-  process: ChildProcessWithoutNullStreams;
+  process: ChildProcessWithoutNullStreams | null;
+  ownsProcess: boolean;
 };
 
 let postgres: PostgresInstance | null = null;
@@ -177,6 +178,16 @@ async function startPostgresProcess() {
 
   await ensureBinIsExecutable(postgresBinary);
 
+  // Reuse a server left behind by an interrupted Electron process.
+  const existingClient = createPgClient();
+  try {
+    await existingClient.connect();
+    await existingClient.end();
+    return { process: null, ownsProcess: false } satisfies PostgresInstance;
+  } catch {
+    await existingClient.end().catch(() => undefined);
+  }
+
   return new Promise<PostgresInstance>((resolve, reject) => {
     const childProcess = spawn(postgresBinary, ['-D', getDatabaseDir(), '-p', '5432'], {
       env: { ...process.env, LC_MESSAGES: locale },
@@ -191,7 +202,7 @@ async function startPostgresProcess() {
 
       if (!settled && message.includes('database system is ready to accept connections')) {
         settled = true;
-        resolve({ process: childProcess });
+        resolve({ process: childProcess, ownsProcess: true });
       }
     });
 
@@ -352,13 +363,17 @@ export async function stopDatabase() {
   await db?.destroy();
   db = null;
 
-  if (!postgres) return;
+  if (!postgres || !postgres.ownsProcess || !postgres.process) {
+    postgres = null;
+    startup = null;
+    return;
+  }
 
   const instance = postgres;
 
   await new Promise<void>((resolve) => {
-    instance.process.once('exit', () => resolve());
-    instance.process.kill('SIGINT');
+    instance.process?.once('exit', () => resolve());
+    instance.process?.kill('SIGINT');
   });
 
   postgres = null;

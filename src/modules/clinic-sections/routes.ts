@@ -10,6 +10,10 @@ export const clinicSectionRoutes: RouteRecordRaw[] = [
     component: PatientsView
   },
   {
+    path: '/medical-records',
+    redirect: '/patients'
+  },
+  {
     path: '/patients/:patientId/records',
     component: PatientRecordsView
   },

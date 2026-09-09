@@ -58,3 +58,7 @@ The macOS release currently targets Apple Silicon (`arm64`) to keep the installe
 - `dist-electron/`: generated Electron main/preload build output.
 - `dist/`: generated renderer build output loaded by Electron in packaged releases.
 - `release/`: generated installers and packaged desktop apps.
+
+
+$ cd Downloads
+$ xattr -dr com.apple.quarantine Nexus Pass Vault..app

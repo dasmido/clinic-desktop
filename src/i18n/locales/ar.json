@@ -30,6 +30,7 @@
   },
   "sidebar": {
     "patients": "المراجعين",
+    "medicalRecords": "السجل الطبي",
     "appointments": "المواعيد",
     "finance": "الحسابات",
     "inbox": "الوارد",

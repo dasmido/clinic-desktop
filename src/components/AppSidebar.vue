@@ -22,6 +22,11 @@ function getItems() {
       to: '/patients'
     },
     {
+      label: t('sidebar.medicalRecords'),
+      icon: 'i-lucide-notebook-pen',
+      to: '/medical-records'
+    },
+    {
       label: t('sidebar.appointments'),
       icon: 'i-lucide-calendar-days',
       to: '/appointments'
