@@ -40,6 +40,8 @@ Create a macOS release:
 npm run dist:mac
 ```
 
+The macOS release currently targets Apple Silicon (`arm64`) to keep the installer smaller. The release script cleans the generated `release/` folder before packaging so old artifacts are not mixed with the current build.
+
 ## Structure
 
 - `electron/main.ts`: Electron main process, native window lifecycle, IPC handlers, and embedded database startup.

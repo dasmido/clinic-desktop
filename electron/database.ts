@@ -76,8 +76,10 @@ function getUnpackedPath(filePath: string) {
 }
 
 function getBinaryPath(binaryName: 'initdb' | 'postgres') {
-  const packageEntry = require.resolve(getNativePackageName());
-  const packageRoot = path.resolve(path.dirname(packageEntry), '..');
+  const nativePackageName = getNativePackageName();
+  const packageRoot = app.isPackaged
+    ? path.join(process.resourcesPath, 'postgres', nativePackageName.replace('@embedded-postgres/', ''))
+    : path.resolve(path.dirname(require.resolve(nativePackageName)), '..');
   const executableName = process.platform === 'win32' ? `${binaryName}.exe` : binaryName;
 
   return getUnpackedPath(path.join(packageRoot, 'native', 'bin', executableName));
