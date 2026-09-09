@@ -5,11 +5,12 @@
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run dev:electron",
+    "dev:renderer": "vite",
     "dev:electron": "vite --mode electron",
-    "build": "vue-tsc -b && vite build",
+    "build": "npm run build:electron",
+    "build:renderer": "vue-tsc -b && vite build",
     "build:electron": "vue-tsc -b && vite build --mode electron",
-    "preview": "vite preview",
     "dist:mac": "npm run build:electron && electron-builder --mac",
     "dist:win": "npm run build:electron && electron-builder --win",
     "dist:linux": "npm run build:electron && electron-builder --linux"
@@ -19,7 +20,13 @@
     "productName": "ClinicDesktop",
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/embedded-postgres/**/*",
+      "**/node_modules/@embedded-postgres/**/*"
     ],
     "directories": {
       "output": "release"
@@ -62,6 +69,7 @@
     "@nuxt/ui": "^4.11.1",
     "bcryptjs": "^3.0.3",
     "embedded-postgres": "^18.4.0-beta.17",
+    "pg": "^8.23.0",
     "tailwindcss": "^4.3.3",
     "vue": "^3.5.41",
     "vue-i18n": "^11.4.10",
@@ -70,6 +78,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^24.13.3",
+    "@types/pg": "^8.23.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/tsconfig": "^0.9.1",
     "electron": "^44.0.0",

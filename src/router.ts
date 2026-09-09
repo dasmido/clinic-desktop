@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import HomeView from './views/HomeView.vue'
 import SectionView from './views/SectionView.vue'
 import SettingsGeneralView from './views/SettingsGeneralView.vue'
@@ -7,7 +7,7 @@ import RegisterView from './views/RegisterView.vue'
 import { useAuth } from './lib/auth'
 
 export const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes: [
     {
       path: '/',
@@ -45,7 +45,25 @@ export const router = createRouter({
   ]
 })
 
+// electronAPI is injected by the preload script before any renderer code runs, but during
+// dev-server reloads (e.g. Vite re-optimizing deps mid-navigation) it can be briefly
+// unavailable while the document is torn down. Wait for it instead of crashing the guard.
+async function waitForElectronAPI(timeoutMs = 2000): Promise<boolean> {
+  const start = Date.now()
+  while (!window.electronAPI) {
+    if (Date.now() - start > timeoutMs) return false
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  return true
+}
+
 router.beforeEach(async (to) => {
+  const electronAPIReady = await waitForElectronAPI()
+  if (!electronAPIReady) {
+    // Let the in-flight reload finish; the guard will run again once the page reloads.
+    return true
+  }
+
   const { currentUser, usersExist, hasUsers } = useAuth()
 
   if (usersExist.value === null) {
@@ -65,4 +83,8 @@ router.beforeEach(async (to) => {
   }
 
   return true
+})
+
+router.onError((error) => {
+  console.error('[router]', error)
 })

@@ -1,14 +1,24 @@
-import EmbeddedPostgres from 'embedded-postgres';
 import { app } from 'electron';
+import { spawn, execSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+import pg from 'pg';
 
 export type QueryValue = string | number | boolean | Date | null;
 
 const APPLICATION_DATABASE = 'clinic_desktop';
+const require = createRequire(import.meta.url);
+const BIN_PERMISSIONS = 0o555;
 
-let postgres: EmbeddedPostgres | null = null;
-let startup: Promise<EmbeddedPostgres> | null = null;
+type PostgresInstance = {
+  process: ChildProcessWithoutNullStreams;
+};
+
+let postgres: PostgresInstance | null = null;
+let startup: Promise<PostgresInstance> | null = null;
 
 export type DatabaseQueryResult = {
   rows: Record<string, unknown>[];
@@ -17,6 +27,68 @@ export type DatabaseQueryResult = {
 
 function getDatabaseDir() {
   return path.join(app.getPath('userData'), 'postgres');
+}
+
+function getBestLocale() {
+  try {
+    const availableLocales = new Set(
+      execSync('locale -a', { encoding: 'utf8' })
+        .split(/\r?\n/)
+        .map((locale) => locale.trim())
+        .filter(Boolean),
+    );
+
+    if (availableLocales.has('en_US.UTF-8')) return 'en_US.UTF-8';
+    if (availableLocales.has('C.UTF-8')) return 'C.UTF-8';
+    if (availableLocales.has('en_US.utf8')) return 'en_US.utf8';
+  } catch {
+    // Fall back to the POSIX locale when `locale -a` is unavailable.
+  }
+
+  return 'C';
+}
+
+function getNativePackageName() {
+  if (process.platform === 'darwin') {
+    if (process.arch === 'arm64') return '@embedded-postgres/darwin-arm64';
+    if (process.arch === 'x64') return '@embedded-postgres/darwin-x64';
+  }
+
+  if (process.platform === 'linux') {
+    if (process.arch === 'arm64') return '@embedded-postgres/linux-arm64';
+    if (process.arch === 'arm') return '@embedded-postgres/linux-arm';
+    if (process.arch === 'ia32') return '@embedded-postgres/linux-ia32';
+    if (process.arch === 'ppc64') return '@embedded-postgres/linux-ppc64';
+    if (process.arch === 'x64') return '@embedded-postgres/linux-x64';
+  }
+
+  if (process.platform === 'win32' && process.arch === 'x64') {
+    return '@embedded-postgres/windows-x64';
+  }
+
+  throw new Error(`Unsupported embedded Postgres platform: ${process.platform}/${process.arch}`);
+}
+
+function getUnpackedPath(filePath: string) {
+  return app.isPackaged
+    ? filePath.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`)
+    : filePath;
+}
+
+function getBinaryPath(binaryName: 'initdb' | 'postgres') {
+  const packageEntry = require.resolve(getNativePackageName());
+  const packageRoot = path.resolve(path.dirname(packageEntry), '..');
+  const executableName = process.platform === 'win32' ? `${binaryName}.exe` : binaryName;
+
+  return getUnpackedPath(path.join(packageRoot, 'native', 'bin', executableName));
+}
+
+async function ensureBinIsExecutable(filePath: string) {
+  const stat = await fs.stat(filePath);
+
+  if ((stat.mode & BIN_PERMISSIONS) !== BIN_PERMISSIONS) {
+    await fs.chmod(filePath, stat.mode | BIN_PERMISSIONS);
+  }
 }
 
 async function databaseClusterExists() {
@@ -28,18 +100,102 @@ async function databaseClusterExists() {
   }
 }
 
-function createEmbeddedPostgres() {
-  return new EmbeddedPostgres({
-    databaseDir: getDatabaseDir(),
-    user: 'postgres',
+function createPgClient(database = 'postgres') {
+  const { Client } = pg;
+
+  return new Client({
+    database,
+    host: 'localhost',
     password: 'password',
     port: 5432,
-    persistent: true,
+    user: 'postgres',
   });
 }
 
-async function ensureApplicationDatabase(instance: EmbeddedPostgres) {
-  const client = instance.getPgClient();
+async function initialiseDatabaseCluster() {
+  const initdb = getBinaryPath('initdb');
+  const locale = getBestLocale();
+  const passwordFile = path.resolve(os.tmpdir(), `clinic-desktop-postgres-password-${crypto.randomUUID()}`);
+
+  await fs.mkdir(getDatabaseDir(), { recursive: true });
+  await fs.writeFile(passwordFile, 'password\n');
+  await ensureBinIsExecutable(initdb);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const childProcess = spawn(initdb, [
+        `--pgdata=${getDatabaseDir()}`,
+        '--auth=password',
+        '--username=postgres',
+        `--pwfile=${passwordFile}`,
+        `--lc-messages=${locale}`,
+      ], {
+        env: { ...process.env, LC_MESSAGES: locale },
+      });
+
+      let stderrOutput = '';
+
+      childProcess.stderr.on('data', (chunk) => {
+        stderrOutput += chunk.toString('utf8');
+      });
+
+      childProcess.on('error', reject);
+      childProcess.on('close', (code, signal) => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+
+        reject(new Error(`Postgres init failed (code: ${code ?? 'null'}, signal: ${signal ?? 'null'}). ${stderrOutput}`));
+      });
+    });
+  } finally {
+    await fs.unlink(passwordFile).catch(() => undefined);
+  }
+}
+
+async function startPostgresProcess() {
+  const postgresBinary = getBinaryPath('postgres');
+  const locale = getBestLocale();
+
+  await ensureBinIsExecutable(postgresBinary);
+
+  return new Promise<PostgresInstance>((resolve, reject) => {
+    const childProcess = spawn(postgresBinary, ['-D', getDatabaseDir(), '-p', '5432'], {
+      env: { ...process.env, LC_MESSAGES: locale },
+    });
+
+    let stderrOutput = '';
+    let settled = false;
+
+    childProcess.stderr.on('data', (chunk) => {
+      const message = chunk.toString('utf8');
+      stderrOutput += message;
+
+      if (!settled && message.includes('database system is ready to accept connections')) {
+        settled = true;
+        resolve({ process: childProcess });
+      }
+    });
+
+    childProcess.on('error', (error) => {
+      if (!settled) {
+        settled = true;
+        reject(error);
+      }
+    });
+
+    childProcess.on('close', (code, signal) => {
+      if (!settled) {
+        settled = true;
+        reject(new Error(`Postgres exited before startup (code: ${code ?? 'null'}, signal: ${signal ?? 'null'}). ${stderrOutput}`));
+      }
+    });
+  });
+}
+
+async function ensureApplicationDatabase() {
+  const client = createPgClient();
 
   await client.connect();
   try {
@@ -48,7 +204,7 @@ async function ensureApplicationDatabase(instance: EmbeddedPostgres) {
     ]);
 
     if (result.rowCount === 0) {
-      await instance.createDatabase(APPLICATION_DATABASE);
+      await client.query(`CREATE DATABASE ${APPLICATION_DATABASE}`);
     }
   } finally {
     await client.end();
@@ -71,19 +227,21 @@ export async function startDatabase() {
   if (postgres) return postgres;
 
   startup ??= (async () => {
-    const instance = createEmbeddedPostgres();
     const shouldInitialise = !(await databaseClusterExists());
 
     if (shouldInitialise) {
-      await instance.initialise();
+      await initialiseDatabaseCluster();
     }
 
-    await instance.start();
-    await ensureApplicationDatabase(instance);
+    const instance = await startPostgresProcess();
+    await ensureApplicationDatabase();
     postgres = instance;
     await ensureUsersTable();
     return instance;
-  })();
+  })().catch((error) => {
+    startup = null;
+    throw error;
+  });
 
   return startup;
 }
@@ -92,8 +250,8 @@ export async function queryDatabase(
   text: string,
   values: QueryValue[] = [],
 ): Promise<DatabaseQueryResult> {
-  const instance = await startDatabase();
-  const client = instance.getPgClient(APPLICATION_DATABASE);
+  await startDatabase();
+  const client = createPgClient(APPLICATION_DATABASE);
 
   await client.connect();
   try {
@@ -111,7 +269,13 @@ export async function queryDatabase(
 export async function stopDatabase() {
   if (!postgres) return;
 
-  await postgres.stop();
+  const instance = postgres;
+
+  await new Promise<void>((resolve) => {
+    instance.process.once('exit', () => resolve());
+    instance.process.kill('SIGINT');
+  });
+
   postgres = null;
   startup = null;
 }
