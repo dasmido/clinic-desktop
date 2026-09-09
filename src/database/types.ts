@@ -51,12 +51,48 @@ export type DoctorAvailabilityTable = {
   ends_at: string;
 };
 
+export type InventoryItemsTable = {
+  id: Generated<number>;
+  name: string;
+  sku: string | null;
+  unit: ColumnType<string, string | undefined, string>;
+  quantity: number;
+  reorder_level: ColumnType<number, number | undefined, number>;
+  unit_cost: ColumnType<number, number | undefined, number>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+};
+
+export type InventoryMovementsTable = {
+  id: Generated<number>;
+  inventory_item_id: number;
+  quantity_change: number;
+  reason: string;
+  notes: ColumnType<string, string | undefined, string>;
+  created_at: Timestamp;
+};
+
+export type FinancialTransactionType = 'income' | 'expense';
+
+export type FinancialTransactionsTable = {
+  id: Generated<number>;
+  transaction_type: FinancialTransactionType;
+  category: string;
+  description: string;
+  amount: number;
+  occurred_on: ColumnType<string, string | undefined, string>;
+  created_at: Timestamp;
+};
+
 export type Database = {
   users: UsersTable;
   patients: PatientsTable;
   appointments: AppointmentsTable;
   doctors: DoctorsTable;
   doctor_availability: DoctorAvailabilityTable;
+  inventory_items: InventoryItemsTable;
+  inventory_movements: InventoryMovementsTable;
+  financial_transactions: FinancialTransactionsTable;
 };
 
 export type User = Selectable<UsersTable>;

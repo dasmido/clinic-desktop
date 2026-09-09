@@ -1,6 +1,6 @@
 import type { RouteRecordRaw } from 'vue-router'
-import SectionView from './views/SectionView.vue'
 import AppointmentsView from './views/AppointmentsView.vue'
+import FinanceView from './views/FinanceView.vue'
 import PatientsView from './views/PatientsView.vue'
 
 export const clinicSectionRoutes: RouteRecordRaw[] = [
@@ -14,7 +14,6 @@ export const clinicSectionRoutes: RouteRecordRaw[] = [
   },
   {
     path: '/finance',
-    component: SectionView,
-    props: { titleKey: 'sections.finance' }
+    component: FinanceView
   }
 ]
