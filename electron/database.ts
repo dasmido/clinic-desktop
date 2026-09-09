@@ -9,8 +9,6 @@ import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import type { Database } from '../src/database/types.js';
 
-export type QueryValue = string | number | boolean | Date | null;
-
 const APPLICATION_DATABASE = 'clinic_desktop';
 const require = createRequire(import.meta.url);
 const BIN_PERMISSIONS = 0o555;
@@ -24,10 +22,18 @@ let postgres: PostgresInstance | null = null;
 let startup: Promise<PostgresInstance> | null = null;
 let db: Kysely<Database> | null = null;
 
-export type DatabaseQueryResult = {
-  rows: Record<string, unknown>[];
-  rowCount: number | null;
-};
+// Keep date/time columns as raw text (matching Postgres' own text output) instead of
+// letting node-postgres parse them into JS Date objects, so repositories can select
+// columns directly without per-query `::text` casts.
+const DATE_OID = 1082;
+const TIME_OID = 1083;
+const TIMESTAMP_OID = 1114;
+const TIMESTAMPTZ_OID = 1184;
+const identity = (value: string) => value;
+pg.types.setTypeParser(DATE_OID, identity);
+pg.types.setTypeParser(TIME_OID, identity);
+pg.types.setTypeParser(TIMESTAMP_OID, identity);
+pg.types.setTypeParser(TIMESTAMPTZ_OID, identity);
 
 function getDatabaseDir() {
   return path.join(app.getPath('userData'), 'postgres');
@@ -337,26 +343,6 @@ export async function getDatabase() {
   });
 
   return db;
-}
-
-export async function queryDatabase(
-  text: string,
-  values: QueryValue[] = [],
-): Promise<DatabaseQueryResult> {
-  await startDatabase();
-  const client = createPgClient(APPLICATION_DATABASE);
-
-  await client.connect();
-  try {
-    const result = await client.query(text, values);
-
-    return {
-      rows: result.rows,
-      rowCount: result.rowCount,
-    };
-  } finally {
-    await client.end();
-  }
 }
 
 export async function stopDatabase() {

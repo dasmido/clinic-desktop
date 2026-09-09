@@ -104,7 +104,7 @@ export type PatientRecordAttachmentsTable = {
   medical_record_id: number;
   original_name: string;
   stored_name: string;
-  mime_type: string;
+  mime_type: ColumnType<string, string | undefined, string>;
   file_size_bytes: number;
   created_at: Timestamp;
 };
@@ -137,3 +137,20 @@ export type AppointmentUpdate = Updateable<AppointmentsTable>;
 export type Doctor = Selectable<DoctorsTable>;
 export type NewDoctor = Insertable<DoctorsTable>;
 export type DoctorAvailability = Selectable<DoctorAvailabilityTable>;
+export type NewDoctorAvailability = Insertable<DoctorAvailabilityTable>;
+
+export type InventoryItem = Selectable<InventoryItemsTable>;
+export type NewInventoryItem = Insertable<InventoryItemsTable>;
+export type InventoryItemUpdate = Updateable<InventoryItemsTable>;
+
+export type InventoryMovement = Selectable<InventoryMovementsTable>;
+export type NewInventoryMovement = Insertable<InventoryMovementsTable>;
+
+export type FinancialTransaction = Selectable<FinancialTransactionsTable>;
+export type NewFinancialTransaction = Insertable<FinancialTransactionsTable>;
+
+export type PatientMedicalRecord = Selectable<PatientMedicalRecordsTable>;
+export type NewPatientMedicalRecord = Insertable<PatientMedicalRecordsTable>;
+
+export type PatientRecordAttachment = Selectable<PatientRecordAttachmentsTable>;
+export type NewPatientRecordAttachment = Insertable<PatientRecordAttachmentsTable>;

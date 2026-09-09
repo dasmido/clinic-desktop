@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { databaseQuery, type Appointment, type AppointmentStatus, type Doctor, type Patient } from '@/modules/clinic-data'
+import type { Appointment, AppointmentStatus, Doctor, Patient } from '@/modules/clinic-data'
 
 const appointments = ref<Appointment[]>([])
 const patients = ref<Patient[]>([])
@@ -63,13 +63,7 @@ async function loadSchedule() {
     const from = new Date(`${selectedDate.value}T00:00:00`).toISOString()
     const to = new Date(`${selectedDate.value}T00:00:00`)
     to.setDate(to.getDate() + 1)
-    appointments.value = await databaseQuery<Appointment>(`
-            SELECT appointments.id, appointments.patient_id, appointments.doctor_id, patients.full_name AS patient_name, patients.phone AS patient_phone, doctors.display_name AS doctor_name,
-             appointments.starts_at::text, appointments.ends_at::text, appointments.status, appointments.notes
-            FROM appointments INNER JOIN patients ON patients.id = appointments.patient_id LEFT JOIN doctors ON doctors.id = appointments.doctor_id
-      WHERE appointments.starts_at < $2 AND appointments.ends_at > $1
-      ORDER BY appointments.starts_at ASC
-    `, [from, to.toISOString()])
+    appointments.value = await window.electronAPI.appointments.listForRange(from, to.toISOString())
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر تحميل جدول المواعيد.'
   } finally {
@@ -78,11 +72,11 @@ async function loadSchedule() {
 }
 
 async function loadPatients() {
-  patients.value = await databaseQuery<Patient>('SELECT id, full_name, phone, date_of_birth::text, notes, created_at::text FROM patients ORDER BY full_name')
+  patients.value = await window.electronAPI.patients.list()
 }
 
 async function loadDoctors() {
-  doctors.value = await databaseQuery<Doctor>('SELECT id, user_id, display_name FROM doctors ORDER BY display_name')
+  doctors.value = await window.electronAPI.doctors.list()
 }
 
 async function saveAppointment() {
@@ -101,30 +95,18 @@ async function saveAppointment() {
   errorMessage.value = ''
   try {
     const doctorId = Number(form.value.doctorId)
-    const availability = await databaseQuery<{ id: number }>(`
-      SELECT id FROM doctor_availability
-      WHERE doctor_id = $1
-        AND day_of_week = EXTRACT(DOW FROM $2::timestamptz)::integer
-        AND starts_at <= $2::timestamptz::time
-        AND ends_at >= $3::timestamptz::time
-      LIMIT 1
-    `, [doctorId, startsAt.toISOString(), endsAt.toISOString()])
-    if (!availability.length) {
-      errorMessage.value = 'الطبيب غير متاح خلال الوقت المحدد.'
-      return
+    const input = {
+      patient_id: Number(form.value.patientId),
+      doctor_id: doctorId,
+      starts_at: startsAt.toISOString(),
+      ends_at: endsAt.toISOString(),
+      status: form.value.status,
+      notes: form.value.notes.trim(),
     }
-    const conflict = await databaseQuery<{ id: number }>(`
-      SELECT id FROM appointments WHERE doctor_id = $1 AND status != 'cancelled' AND starts_at < $3 AND ends_at > $2${editingAppointment.value ? ' AND id != $4' : ''} LIMIT 1
-    `, editingAppointment.value ? [doctorId, startsAt.toISOString(), endsAt.toISOString(), editingAppointment.value.id] : [doctorId, startsAt.toISOString(), endsAt.toISOString()])
-    if (form.value.status !== 'cancelled' && conflict.length) {
-      errorMessage.value = 'يوجد موعد نشط خلال هذا الوقت.'
-      return
-    }
-    const values = [Number(form.value.patientId), doctorId, startsAt.toISOString(), endsAt.toISOString(), form.value.status, form.value.notes.trim()]
     if (editingAppointment.value) {
-      await databaseQuery('UPDATE appointments SET patient_id = $1, doctor_id = $2, starts_at = $3, ends_at = $4, status = $5, notes = $6, updated_at = now() WHERE id = $7', [...values, editingAppointment.value.id])
+      await window.electronAPI.appointments.update(editingAppointment.value.id, input)
     } else {
-      await databaseQuery('INSERT INTO appointments (patient_id, doctor_id, starts_at, ends_at, status, notes) VALUES ($1, $2, $3, $4, $5, $6)', values)
+      await window.electronAPI.appointments.create(input)
     }
     isModalOpen.value = false
     await loadSchedule()
@@ -139,7 +121,7 @@ async function deleteAppointment() {
   if (!editingAppointment.value || !window.confirm('حذف هذا الموعد نهائياً؟')) return
   isLoading.value = true
   try {
-    await databaseQuery('DELETE FROM appointments WHERE id = $1', [editingAppointment.value.id])
+    await window.electronAPI.appointments.delete(editingAppointment.value.id)
     isModalOpen.value = false
     await loadSchedule()
   } catch (error) {

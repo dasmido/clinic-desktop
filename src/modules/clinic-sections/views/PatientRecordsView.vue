@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/modules/auth'
-import { databaseQuery, type MedicalRecord, type MedicalRecordAttachment, type Patient } from '@/modules/clinic-data'
+import type { MedicalRecord, MedicalRecordAttachment, Patient } from '@/modules/clinic-data'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,13 +40,13 @@ async function loadRecords() {
   }
   isLoading.value = true
   try {
-    const [patients, medicalRecords] = await Promise.all([
-      databaseQuery<Patient>('SELECT id, full_name, phone, date_of_birth::text, notes, created_at::text FROM patients WHERE id = $1', [patientId]),
-      databaseQuery<MedicalRecord>(`SELECT records.id, records.patient_id, records.recorded_by_user_id, users.username AS recorded_by_name, records.visit_date::text, records.chief_complaint, records.diagnosis, records.treatment_plan, records.clinical_notes, records.blood_pressure, records.temperature_celsius::text, records.weight_kg::text, records.created_at::text FROM patient_medical_records AS records LEFT JOIN users ON users.id = records.recorded_by_user_id WHERE records.patient_id = $1 ORDER BY records.visit_date DESC`, [patientId]),
+    const [patients, medicalData] = await Promise.all([
+      window.electronAPI.patients.list(),
+      window.electronAPI.medicalRecords.listByPatient(patientId),
     ])
-    patient.value = patients[0] ?? null
-    records.value = medicalRecords
-    attachments.value = medicalRecords.length ? await databaseQuery<MedicalRecordAttachment>(`SELECT id, medical_record_id, original_name, stored_name, mime_type, file_size_bytes::text, created_at::text FROM patient_record_attachments WHERE medical_record_id = ANY($1::int[]) ORDER BY id DESC`, [medicalRecords.map((record) => record.id)]) : []
+    patient.value = patients.find((candidate) => candidate.id === patientId) ?? null
+    records.value = medicalData.records
+    attachments.value = medicalData.attachments
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر تحميل السجل الطبي.'
   } finally {
@@ -62,7 +62,18 @@ async function saveRecord() {
   }
   isLoading.value = true
   try {
-    await databaseQuery('INSERT INTO patient_medical_records (patient_id, recorded_by_user_id, visit_date, chief_complaint, diagnosis, treatment_plan, clinical_notes, blood_pressure, temperature_celsius, weight_kg) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)', [patientId, currentUser.value?.id ?? null, new Date(data.visitDate).toISOString(), data.chiefComplaint.trim(), data.diagnosis.trim(), data.treatmentPlan.trim(), data.clinicalNotes.trim(), data.bloodPressure.trim(), data.temperature ? Number(data.temperature) : null, data.weight ? Number(data.weight) : null])
+    await window.electronAPI.medicalRecords.create({
+      patient_id: patientId,
+      recorded_by_user_id: currentUser.value?.id ?? null,
+      visit_date: new Date(data.visitDate).toISOString(),
+      chief_complaint: data.chiefComplaint.trim(),
+      diagnosis: data.diagnosis.trim(),
+      treatment_plan: data.treatmentPlan.trim(),
+      clinical_notes: data.clinicalNotes.trim(),
+      blood_pressure: data.bloodPressure.trim(),
+      temperature_celsius: data.temperature ? Number(data.temperature) : null,
+      weight_kg: data.weight ? Number(data.weight) : null,
+    })
     isRecordModalOpen.value = false
     await loadRecords()
   } catch (error) {
@@ -78,7 +89,12 @@ async function addAttachment(record: MedicalRecord) {
   try {
     const files = await window.electronAPI.patientFiles.add(record.id)
     for (const file of files) {
-      await databaseQuery('INSERT INTO patient_record_attachments (medical_record_id, original_name, stored_name, file_size_bytes) VALUES ($1, $2, $3, $4)', [record.id, file.originalName, file.storedName, file.fileSizeBytes])
+      await window.electronAPI.medicalRecords.addAttachment({
+        medical_record_id: record.id,
+        original_name: file.originalName,
+        stored_name: file.storedName,
+        file_size_bytes: file.fileSizeBytes,
+      })
     }
     await loadRecords()
   } catch (error) {
@@ -101,7 +117,7 @@ async function deleteRecord(record: MedicalRecord) {
   isLoading.value = true
   try {
     await window.electronAPI.patientFiles.deleteRecord(record.id)
-    await databaseQuery('DELETE FROM patient_medical_records WHERE id = $1', [record.id])
+    await window.electronAPI.medicalRecords.delete(record.id)
     await loadRecords()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر حذف الزيارة.'
@@ -115,7 +131,7 @@ async function deleteAttachment(attachment: MedicalRecordAttachment) {
   isLoading.value = true
   try {
     await window.electronAPI.patientFiles.delete(attachment.medical_record_id, attachment.stored_name)
-    await databaseQuery('DELETE FROM patient_record_attachments WHERE id = $1', [attachment.id])
+    await window.electronAPI.medicalRecords.deleteAttachment(attachment.id)
     await loadRecords()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر حذف المرفق.'

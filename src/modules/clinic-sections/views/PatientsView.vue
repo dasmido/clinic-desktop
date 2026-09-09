@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { databaseQuery, type Patient } from '@/modules/clinic-data'
+import type { Patient } from '@/modules/clinic-data'
 
 const patients = ref<Patient[]>([])
 const search = ref('')
@@ -41,11 +41,7 @@ function openEditModal(patient: Patient) {
 async function loadPatients() {
   isLoading.value = true
   try {
-    patients.value = await databaseQuery<Patient>(`
-      SELECT id, full_name, phone, date_of_birth::text, notes, created_at::text
-      FROM patients
-      ORDER BY full_name ASC
-    `)
+    patients.value = await window.electronAPI.patients.list()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر تحميل بيانات المراجعين.'
   } finally {
@@ -64,17 +60,11 @@ async function savePatient() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const values = [fullName, phone, form.value.dateOfBirth || null, form.value.notes.trim()]
+    const input = { full_name: fullName, phone, date_of_birth: form.value.dateOfBirth || null, notes: form.value.notes.trim() }
     if (editingPatient.value) {
-      await databaseQuery(
-        `UPDATE patients SET full_name = $1, phone = $2, date_of_birth = $3, notes = $4, updated_at = now() WHERE id = $5`,
-        [...values, editingPatient.value.id],
-      )
+      await window.electronAPI.patients.update(editingPatient.value.id, input)
     } else {
-      await databaseQuery(
-        `INSERT INTO patients (full_name, phone, date_of_birth, notes) VALUES ($1, $2, $3, $4)`,
-        values,
-      )
+      await window.electronAPI.patients.create(input)
     }
     isModalOpen.value = false
     await loadPatients()
@@ -89,7 +79,7 @@ async function deletePatient() {
   if (!editingPatient.value || !window.confirm(`حذف سجل ${editingPatient.value.full_name} وجميع مواعيده وسجله الطبي؟`)) return
   isLoading.value = true
   try {
-    await databaseQuery('DELETE FROM patients WHERE id = $1', [editingPatient.value.id])
+    await window.electronAPI.patients.delete(editingPatient.value.id)
     isModalOpen.value = false
     await loadPatients()
   } catch (error) {

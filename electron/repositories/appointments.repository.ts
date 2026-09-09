@@ -18,10 +18,12 @@ function toTimestamp(value: Date | string): Date {
 export type AppointmentWithPatient = Appointment & {
   patient_name: string;
   patient_phone: string;
+  doctor_name: string | null;
 };
 
 export type CreateAppointmentInput = {
   patient_id: number;
+  doctor_id: number | null;
   starts_at: Date | string;
   ends_at: Date | string;
   status?: AppointmentStatus;
@@ -30,6 +32,7 @@ export type CreateAppointmentInput = {
 
 export type UpdateAppointmentInput = {
   patient_id?: number;
+  doctor_id?: number | null;
   starts_at?: Date | string;
   ends_at?: Date | string;
   status?: AppointmentStatus;
@@ -50,10 +53,12 @@ export async function listAppointments(
   let query = db
     .selectFrom('appointments')
     .innerJoin('patients', 'patients.id', 'appointments.patient_id')
+    .leftJoin('doctors', 'doctors.id', 'appointments.doctor_id')
     .selectAll('appointments')
     .select([
       'patients.full_name as patient_name',
       'patients.phone as patient_phone',
+      'doctors.display_name as doctor_name',
     ])
     .where('appointments.starts_at', '>=', filters.from)
     .where('appointments.starts_at', '<', filters.to)
@@ -77,10 +82,12 @@ export async function findAppointmentById(
   return db
     .selectFrom('appointments')
     .innerJoin('patients', 'patients.id', 'appointments.patient_id')
+    .leftJoin('doctors', 'doctors.id', 'appointments.doctor_id')
     .selectAll('appointments')
     .select([
       'patients.full_name as patient_name',
       'patients.phone as patient_phone',
+      'doctors.display_name as doctor_name',
     ])
     .where('appointments.id', '=', appointmentId)
     .executeTakeFirst();
@@ -88,6 +95,7 @@ export async function findAppointmentById(
 
 export async function hasSchedulingConflict(
   db: Kysely<Database>,
+  doctorId: number | null,
   startsAt: Date,
   endsAt: Date,
   excludeAppointmentId?: number,
@@ -98,6 +106,10 @@ export async function hasSchedulingConflict(
     .where('status', '!=', 'cancelled')
     .where('starts_at', '<', endsAt)
     .where('ends_at', '>', startsAt);
+
+  if (doctorId !== null) {
+    query = query.where('doctor_id', '=', doctorId);
+  }
 
   if (excludeAppointmentId !== undefined) {
     query = query.where('id', '!=', excludeAppointmentId);
@@ -112,19 +124,24 @@ export async function createAppointment(
 ): Promise<Appointment> {
   const startsAt = toTimestamp(appointment.starts_at);
   const endsAt = toTimestamp(appointment.ends_at);
-  const hasConflict = await hasSchedulingConflict(db, startsAt, endsAt);
+  const status = appointment.status ?? 'scheduled';
 
-  if (hasConflict) {
-    throw new Error('An active appointment already occupies this time slot.');
+  if (status !== 'cancelled') {
+    const hasConflict = await hasSchedulingConflict(db, appointment.doctor_id, startsAt, endsAt);
+
+    if (hasConflict) {
+      throw new Error('يوجد موعد نشط خلال هذا الوقت.');
+    }
   }
 
   return db
     .insertInto('appointments')
     .values({
       patient_id: appointment.patient_id,
+      doctor_id: appointment.doctor_id,
       starts_at: startsAt,
       ends_at: endsAt,
-      status: appointment.status ?? 'scheduled',
+      status,
       notes: appointment.notes?.trim() ?? '',
     })
     .returningAll()
@@ -138,7 +155,7 @@ export async function updateAppointment(
 ): Promise<Appointment | undefined> {
   const existing = await db
     .selectFrom('appointments')
-    .select(['starts_at', 'ends_at', 'status'])
+    .select(['starts_at', 'ends_at', 'status', 'doctor_id'])
     .where('id', '=', appointmentId)
     .executeTakeFirst();
 
@@ -147,18 +164,19 @@ export async function updateAppointment(
   }
 
   const startsAt = appointment.starts_at === undefined
-    ? existing.starts_at
+    ? toTimestamp(existing.starts_at)
     : toTimestamp(appointment.starts_at);
   const endsAt = appointment.ends_at === undefined
-    ? existing.ends_at
+    ? toTimestamp(existing.ends_at)
     : toTimestamp(appointment.ends_at);
   const status = appointment.status ?? existing.status;
+  const doctorId = appointment.doctor_id === undefined ? existing.doctor_id : appointment.doctor_id;
 
   if (status !== 'cancelled') {
-    const hasConflict = await hasSchedulingConflict(db, startsAt, endsAt, appointmentId);
+    const hasConflict = await hasSchedulingConflict(db, doctorId, startsAt, endsAt, appointmentId);
 
     if (hasConflict) {
-      throw new Error('An active appointment already occupies this time slot.');
+      throw new Error('يوجد موعد نشط خلال هذا الوقت.');
     }
   }
 
@@ -166,6 +184,7 @@ export async function updateAppointment(
     .updateTable('appointments')
     .set({
       ...(appointment.patient_id === undefined ? {} : { patient_id: appointment.patient_id }),
+      ...(appointment.doctor_id === undefined ? {} : { doctor_id: appointment.doctor_id }),
       ...(appointment.starts_at === undefined ? {} : { starts_at: startsAt }),
       ...(appointment.ends_at === undefined ? {} : { ends_at: endsAt }),
       ...(appointment.status === undefined ? {} : { status: appointment.status }),
@@ -190,5 +209,12 @@ export async function updateAppointmentStatus(
     })
     .where('id', '=', appointmentId)
     .returningAll()
+    .executeTakeFirst();
+}
+
+export async function deleteAppointment(db: Kysely<Database>, appointmentId: number) {
+  return db
+    .deleteFrom('appointments')
+    .where('id', '=', appointmentId)
     .executeTakeFirst();
 }

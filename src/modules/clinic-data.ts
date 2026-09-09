@@ -28,6 +28,14 @@ export type Doctor = {
   display_name: string;
 };
 
+export type DoctorAvailability = {
+  id: number;
+  doctor_id: number;
+  day_of_week: number;
+  starts_at: string;
+  ends_at: string;
+};
+
 export type InventoryItem = {
   id: number;
   name: string;
@@ -49,6 +57,11 @@ export type FinancialTransaction = {
   amount: string;
   occurred_on: string;
   created_at: string;
+};
+
+export type FinanceSummary = {
+  income: string;
+  expenses: string;
 };
 
 export type MedicalRecord = {
@@ -76,8 +89,3 @@ export type MedicalRecordAttachment = {
   file_size_bytes: string;
   created_at: string;
 };
-
-export async function databaseQuery<Row>(text: string, values: unknown[] = []): Promise<Row[]> {
-  const result = await window.electronAPI.database.query(text, values);
-  return result.rows as Row[];
-}

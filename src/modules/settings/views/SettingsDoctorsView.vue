@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { databaseQuery, type Doctor } from '@/modules/clinic-data'
+import type { Doctor, DoctorAvailability } from '@/modules/clinic-data'
 import { useAuth, type AuthUser } from '@/modules/auth'
 
-type Availability = { id: number; day_of_week: number; starts_at: string; ends_at: string }
+type Availability = DoctorAvailability
 
 const router = useRouter()
 const { currentUser } = useAuth()
@@ -28,7 +28,7 @@ async function loadData() {
   try {
     const [accountRows, doctorRows] = await Promise.all([
       window.electronAPI.auth.listUsers(),
-      databaseQuery<Doctor>('SELECT id, user_id, display_name FROM doctors ORDER BY display_name'),
+      window.electronAPI.doctors.list(),
     ])
     users.value = accountRows
     doctors.value = doctorRows
@@ -46,7 +46,7 @@ async function loadAvailability() {
     availability.value = []
     return
   }
-  availability.value = await databaseQuery<Availability>('SELECT id, day_of_week, starts_at::text, ends_at::text FROM doctor_availability WHERE doctor_id = $1 ORDER BY day_of_week, starts_at', [Number(selectedDoctorId.value)])
+  availability.value = await window.electronAPI.doctors.listAvailability(Number(selectedDoctorId.value))
 }
 
 async function addDoctorProfile() {
@@ -54,7 +54,7 @@ async function addDoctorProfile() {
   if (!account) return
   isLoading.value = true
   try {
-    await databaseQuery('INSERT INTO doctors (user_id, display_name) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING', [account.id, account.username])
+    await window.electronAPI.doctors.createProfile(account.id, account.username)
     profileName.value = ''
     await loadData()
   } catch (error) {
@@ -72,7 +72,7 @@ async function addAvailability() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    await databaseQuery('INSERT INTO doctor_availability (doctor_id, day_of_week, starts_at, ends_at) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [Number(selectedDoctorId.value), Number(slot.value.day), slot.value.startsAt, slot.value.endsAt])
+    await window.electronAPI.doctors.addAvailability(Number(selectedDoctorId.value), Number(slot.value.day), slot.value.startsAt, slot.value.endsAt)
     await loadAvailability()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر حفظ وقت التواجد.'
@@ -82,7 +82,7 @@ async function addAvailability() {
 }
 
 async function removeAvailability(id: number) {
-  await databaseQuery('DELETE FROM doctor_availability WHERE id = $1', [id])
+  await window.electronAPI.doctors.removeAvailability(id)
   await loadAvailability()
 }
 
@@ -90,7 +90,7 @@ async function removeDoctor(doctor: Doctor) {
   if (!window.confirm(`حذف ملف د. ${doctor.display_name}؟ ستبقى مواعيده السابقة دون طبيب محدد.`)) return
   isLoading.value = true
   try {
-    await databaseQuery('DELETE FROM doctors WHERE id = $1', [doctor.id])
+    await window.electronAPI.doctors.delete(doctor.id)
     if (selectedDoctorId.value === String(doctor.id)) selectedDoctorId.value = ''
     await loadData()
   } catch (error) {

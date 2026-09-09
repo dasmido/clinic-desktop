@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { databaseQuery, type FinancialTransaction, type FinancialTransactionType, type InventoryItem } from '@/modules/clinic-data'
-
-type FinanceSummary = { income: string; expenses: string }
+import type { FinanceSummary, FinancialTransaction, FinancialTransactionType, InventoryItem } from '@/modules/clinic-data'
 
 const activeView = ref<'finance' | 'inventory'>('finance')
 const transactions = ref<FinancialTransaction[]>([])
@@ -42,22 +40,12 @@ async function loadData() {
     const monthStart = new Date()
     monthStart.setDate(1)
     monthStart.setHours(0, 0, 0, 0)
-    const [summaryRows, transactionRows, itemRows] = await Promise.all([
-      databaseQuery<FinanceSummary>(`
-        SELECT COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'income'), 0)::text AS income,
-               COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'expense'), 0)::text AS expenses
-        FROM financial_transactions WHERE occurred_on >= $1
-      `, [monthStart.toISOString().slice(0, 10)]),
-      databaseQuery<FinancialTransaction>(`
-        SELECT id, transaction_type, category, description, amount::text, occurred_on::text, created_at::text
-        FROM financial_transactions ORDER BY occurred_on DESC, id DESC LIMIT 100
-      `),
-      databaseQuery<InventoryItem>(`
-        SELECT id, name, sku, unit, quantity::text, reorder_level::text, unit_cost::text, created_at::text
-        FROM inventory_items ORDER BY name
-      `),
+    const [summaryRow, transactionRows, itemRows] = await Promise.all([
+      window.electronAPI.finance.getSummary(monthStart.toISOString().slice(0, 10)),
+      window.electronAPI.finance.listTransactions(100),
+      window.electronAPI.inventory.list(),
     ])
-    summary.value = summaryRows[0] ?? { income: '0', expenses: '0' }
+    summary.value = summaryRow ?? { income: '0', expenses: '0' }
     transactions.value = transactionRows
     inventoryItems.value = itemRows
   } catch (error) {
@@ -97,10 +85,13 @@ async function saveTransaction() {
   }
   isLoading.value = true
   try {
-    await databaseQuery(
-      'INSERT INTO financial_transactions (transaction_type, category, description, amount, occurred_on) VALUES ($1, $2, $3, $4, $5)',
-      [form.type, form.category.trim(), form.description.trim(), Number(form.amount), form.occurredOn],
-    )
+    await window.electronAPI.finance.createTransaction({
+      transaction_type: form.type,
+      category: form.category.trim(),
+      description: form.description.trim(),
+      amount: Number(form.amount),
+      occurred_on: form.occurredOn,
+    })
     isTransactionModalOpen.value = false
     await loadData()
   } catch (error) {
@@ -119,18 +110,22 @@ async function saveItem() {
   isLoading.value = true
   try {
     if (editingItem.value) {
-      await databaseQuery(
-        'UPDATE inventory_items SET name = $1, sku = $2, unit = $3, reorder_level = $4, unit_cost = $5, updated_at = now() WHERE id = $6',
-        [form.name.trim(), form.sku.trim() || null, form.unit.trim(), Number(form.reorderLevel || 0), Number(form.unitCost || 0), editingItem.value.id],
-      )
+      await window.electronAPI.inventory.updateItem(editingItem.value.id, {
+        name: form.name.trim(),
+        sku: form.sku.trim() || null,
+        unit: form.unit.trim(),
+        reorder_level: Number(form.reorderLevel || 0),
+        unit_cost: Number(form.unitCost || 0),
+      })
     } else {
-      const items = await databaseQuery<{ id: number }>(
-        'INSERT INTO inventory_items (name, sku, unit, quantity, reorder_level, unit_cost) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-        [form.name.trim(), form.sku.trim() || null, form.unit.trim(), Number(form.quantity || 0), Number(form.reorderLevel || 0), Number(form.unitCost || 0)],
-      )
-      if (Number(form.quantity || 0) > 0 && items[0]) {
-        await databaseQuery('INSERT INTO inventory_movements (inventory_item_id, quantity_change, reason) VALUES ($1, $2, $3)', [items[0].id, Number(form.quantity), 'رصيد افتتاحي'])
-      }
+      await window.electronAPI.inventory.createItem({
+        name: form.name.trim(),
+        sku: form.sku.trim() || null,
+        unit: form.unit.trim(),
+        quantity: Number(form.quantity || 0),
+        reorder_level: Number(form.reorderLevel || 0),
+        unit_cost: Number(form.unitCost || 0),
+      })
     }
     isItemModalOpen.value = false
     await loadData()
@@ -150,12 +145,7 @@ async function saveAdjustment() {
   }
   isLoading.value = true
   try {
-    const updated = await databaseQuery<{ id: number }>(
-      'UPDATE inventory_items SET quantity = quantity + $1, updated_at = now() WHERE id = $2 AND quantity + $1 >= 0 RETURNING id',
-      [change, item.id],
-    )
-    if (!updated.length) throw new Error('لا يمكن أن تصبح كمية المخزون أقل من صفر.')
-    await databaseQuery('INSERT INTO inventory_movements (inventory_item_id, quantity_change, reason, notes) VALUES ($1, $2, $3, $4)', [item.id, change, adjustmentForm.value.reason.trim() || 'تسوية', adjustmentForm.value.notes.trim()])
+    await window.electronAPI.inventory.adjustQuantity(item.id, change, adjustmentForm.value.reason.trim() || 'تسوية', adjustmentForm.value.notes.trim())
     isAdjustmentModalOpen.value = false
     await loadData()
   } catch (error) {
@@ -169,7 +159,7 @@ async function deleteTransaction(transaction: FinancialTransaction) {
   if (!window.confirm(`حذف عملية ${transaction.description} نهائياً؟`)) return
   isLoading.value = true
   try {
-    await databaseQuery('DELETE FROM financial_transactions WHERE id = $1', [transaction.id])
+    await window.electronAPI.finance.deleteTransaction(transaction.id)
     await loadData()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر حذف العملية المالية.'
@@ -182,7 +172,7 @@ async function deleteItem(item: InventoryItem) {
   if (!window.confirm(`حذف صنف ${item.name} وحركاته المسجلة؟`)) return
   isLoading.value = true
   try {
-    await databaseQuery('DELETE FROM inventory_items WHERE id = $1', [item.id])
+    await window.electronAPI.inventory.deleteItem(item.id)
     await loadData()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر حذف صنف المخزون.'

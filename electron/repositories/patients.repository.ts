@@ -73,3 +73,10 @@ export async function updatePatient(
     .returningAll()
     .executeTakeFirst();
 }
+
+export async function deletePatient(db: Kysely<Database>, patientId: number) {
+  return db
+    .deleteFrom('patients')
+    .where('id', '=', patientId)
+    .executeTakeFirst();
+}

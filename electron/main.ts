@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getDatabase, queryDatabase, startDatabase, stopDatabase, type QueryValue } from './database.js';
+import { getDatabase, startDatabase, stopDatabase } from './database.js';
 import {
   countUsers,
   createUser,
@@ -12,6 +12,56 @@ import {
   verifyUserCredentials,
   type AuthUser,
 } from './repositories/users.repository.js';
+import {
+  createPatient,
+  deletePatient,
+  listPatients,
+  updatePatient,
+} from './repositories/patients.repository.js';
+import {
+  createAppointment,
+  deleteAppointment,
+  listAppointments,
+  updateAppointment,
+  type CreateAppointmentInput,
+  type UpdateAppointmentInput,
+} from './repositories/appointments.repository.js';
+import {
+  addDoctorAvailability,
+  createDoctorProfile,
+  deleteDoctor,
+  isDoctorAvailableForSlot,
+  listDoctorAvailability,
+  listDoctors,
+  removeDoctorAvailability,
+} from './repositories/doctors.repository.js';
+import {
+  adjustInventoryQuantity,
+  createInventoryItem,
+  deleteInventoryItem,
+  listInventoryItems,
+  updateInventoryItem,
+  type CreateInventoryItemInput,
+  type UpdateInventoryItemInput,
+} from './repositories/inventory.repository.js';
+import {
+  createTransaction,
+  deleteTransaction,
+  getFinanceSummary,
+  listTransactions,
+  type CreateTransactionInput,
+} from './repositories/finance.repository.js';
+import {
+  createAttachment,
+  createMedicalRecord,
+  deleteAttachment,
+  deleteMedicalRecord,
+  findMedicalRecordById,
+  listAttachmentsForRecords,
+  listMedicalRecordsByPatient,
+  type CreateAttachmentInput,
+  type CreateMedicalRecordInput,
+} from './repositories/medical-records.repository.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -29,18 +79,200 @@ const userRoles = new Set<AuthUser['role']>([
   'admin',
 ]);
 
+function assertSignedIn() {
+  if (!currentSessionUser) {
+    throw new Error('Please sign in before accessing clinic data.');
+  }
+}
+
 function registerDatabaseHandlers() {
   ipcMain.handle('database:is-ready', async () => {
     await startDatabase();
     return true;
   });
+}
 
-  ipcMain.handle('database:query', async (_event, text: string, values: QueryValue[] = []) => {
-    if (typeof text !== 'string' || !text.trim()) {
-      throw new Error('Database query must be a non-empty string.');
+function registerPatientHandlers() {
+  ipcMain.handle('patients:list', async (_event, search?: string) => {
+    assertSignedIn();
+    return listPatients(await getDatabase(), search);
+  });
+
+  ipcMain.handle('patients:create', async (_event, input: Parameters<typeof createPatient>[1]) => {
+    assertSignedIn();
+    return createPatient(await getDatabase(), input);
+  });
+
+  ipcMain.handle('patients:update', async (_event, patientId: number, input: Parameters<typeof updatePatient>[2]) => {
+    assertSignedIn();
+    return updatePatient(await getDatabase(), patientId, input);
+  });
+
+  ipcMain.handle('patients:delete', async (_event, patientId: number) => {
+    assertSignedIn();
+    await deletePatient(await getDatabase(), patientId);
+    return true;
+  });
+}
+
+function registerAppointmentHandlers() {
+  ipcMain.handle('appointments:list-for-range', async (_event, from: string, to: string) => {
+    assertSignedIn();
+    return listAppointments(await getDatabase(), { from: new Date(from), to: new Date(to) });
+  });
+
+  ipcMain.handle('appointments:create', async (_event, input: CreateAppointmentInput) => {
+    assertSignedIn();
+    const db = await getDatabase();
+    const startsAt = new Date(input.starts_at);
+    const endsAt = new Date(input.ends_at);
+
+    if (input.doctor_id !== null && !(await isDoctorAvailableForSlot(db, input.doctor_id, startsAt, endsAt))) {
+      throw new Error('الطبيب غير متاح خلال الوقت المحدد.');
     }
 
-    return queryDatabase(text, values);
+    return createAppointment(db, input);
+  });
+
+  ipcMain.handle('appointments:update', async (_event, appointmentId: number, input: UpdateAppointmentInput) => {
+    assertSignedIn();
+    const db = await getDatabase();
+
+    if (input.doctor_id != null && input.starts_at !== undefined && input.ends_at !== undefined) {
+      const startsAt = new Date(input.starts_at);
+      const endsAt = new Date(input.ends_at);
+
+      if (!(await isDoctorAvailableForSlot(db, input.doctor_id, startsAt, endsAt))) {
+        throw new Error('الطبيب غير متاح خلال الوقت المحدد.');
+      }
+    }
+
+    return updateAppointment(db, appointmentId, input);
+  });
+
+  ipcMain.handle('appointments:delete', async (_event, appointmentId: number) => {
+    assertSignedIn();
+    await deleteAppointment(await getDatabase(), appointmentId);
+    return true;
+  });
+}
+
+function registerDoctorHandlers() {
+  ipcMain.handle('doctors:list', async () => {
+    assertSignedIn();
+    return listDoctors(await getDatabase());
+  });
+
+  ipcMain.handle('doctors:create-profile', async (_event, userId: number, displayName: string) => {
+    assertSignedIn();
+    await createDoctorProfile(await getDatabase(), userId, displayName);
+    return true;
+  });
+
+  ipcMain.handle('doctors:delete', async (_event, doctorId: number) => {
+    assertSignedIn();
+    await deleteDoctor(await getDatabase(), doctorId);
+    return true;
+  });
+
+  ipcMain.handle('doctors:list-availability', async (_event, doctorId: number) => {
+    assertSignedIn();
+    return listDoctorAvailability(await getDatabase(), doctorId);
+  });
+
+  ipcMain.handle('doctors:add-availability', async (_event, doctorId: number, dayOfWeek: number, startsAt: string, endsAt: string) => {
+    assertSignedIn();
+    await addDoctorAvailability(await getDatabase(), doctorId, dayOfWeek, startsAt, endsAt);
+    return true;
+  });
+
+  ipcMain.handle('doctors:remove-availability', async (_event, availabilityId: number) => {
+    assertSignedIn();
+    await removeDoctorAvailability(await getDatabase(), availabilityId);
+    return true;
+  });
+}
+
+function registerInventoryHandlers() {
+  ipcMain.handle('inventory:list', async () => {
+    assertSignedIn();
+    return listInventoryItems(await getDatabase());
+  });
+
+  ipcMain.handle('inventory:create-item', async (_event, input: CreateInventoryItemInput) => {
+    assertSignedIn();
+    return createInventoryItem(await getDatabase(), input);
+  });
+
+  ipcMain.handle('inventory:update-item', async (_event, itemId: number, input: UpdateInventoryItemInput) => {
+    assertSignedIn();
+    return updateInventoryItem(await getDatabase(), itemId, input);
+  });
+
+  ipcMain.handle('inventory:delete-item', async (_event, itemId: number) => {
+    assertSignedIn();
+    await deleteInventoryItem(await getDatabase(), itemId);
+    return true;
+  });
+
+  ipcMain.handle('inventory:adjust-quantity', async (_event, itemId: number, quantityChange: number, reason: string, notes?: string) => {
+    assertSignedIn();
+    return adjustInventoryQuantity(await getDatabase(), itemId, quantityChange, reason, notes);
+  });
+}
+
+function registerFinanceHandlers() {
+  ipcMain.handle('finance:get-summary', async (_event, monthStart: string) => {
+    assertSignedIn();
+    return getFinanceSummary(await getDatabase(), monthStart);
+  });
+
+  ipcMain.handle('finance:list-transactions', async (_event, limit?: number) => {
+    assertSignedIn();
+    return listTransactions(await getDatabase(), limit);
+  });
+
+  ipcMain.handle('finance:create-transaction', async (_event, input: CreateTransactionInput) => {
+    assertSignedIn();
+    return createTransaction(await getDatabase(), input);
+  });
+
+  ipcMain.handle('finance:delete-transaction', async (_event, transactionId: number) => {
+    assertSignedIn();
+    await deleteTransaction(await getDatabase(), transactionId);
+    return true;
+  });
+}
+
+function registerMedicalRecordHandlers() {
+  ipcMain.handle('medical-records:list-by-patient', async (_event, patientId: number) => {
+    assertSignedIn();
+    const db = await getDatabase();
+    const records = await listMedicalRecordsByPatient(db, patientId);
+    const attachments = await listAttachmentsForRecords(db, records.map((record) => record.id));
+    return { records, attachments };
+  });
+
+  ipcMain.handle('medical-records:create', async (_event, input: CreateMedicalRecordInput) => {
+    assertSignedIn();
+    return createMedicalRecord(await getDatabase(), input);
+  });
+
+  ipcMain.handle('medical-records:delete', async (_event, recordId: number) => {
+    assertSignedIn();
+    await deleteMedicalRecord(await getDatabase(), recordId);
+    return true;
+  });
+
+  ipcMain.handle('medical-records:add-attachment', async (_event, input: CreateAttachmentInput) => {
+    assertSignedIn();
+    return createAttachment(await getDatabase(), input);
+  });
+
+  ipcMain.handle('medical-records:delete-attachment', async (_event, attachmentId: number) => {
+    assertSignedIn();
+    await deleteAttachment(await getDatabase(), attachmentId);
+    return true;
   });
 }
 
@@ -61,8 +293,8 @@ function registerPatientFileHandlers() {
     });
     if (selected.canceled) return [];
 
-    const record = await queryDatabase('SELECT id FROM patient_medical_records WHERE id = $1', [medicalRecordId]);
-    if (!record.rowCount) throw new Error('Medical record was not found.');
+    const record = await findMedicalRecordById(await getDatabase(), medicalRecordId);
+    if (!record) throw new Error('Medical record was not found.');
 
     const directory = getPatientFilesDirectory(medicalRecordId);
     await fs.mkdir(directory, { recursive: true });
@@ -216,6 +448,12 @@ app.whenReady().then(() => {
   registerDatabaseHandlers();
   registerPatientFileHandlers();
   registerAuthHandlers();
+  registerPatientHandlers();
+  registerAppointmentHandlers();
+  registerDoctorHandlers();
+  registerInventoryHandlers();
+  registerFinanceHandlers();
+  registerMedicalRecordHandlers();
   createWindow();
   // Boot Postgres in parallel; IPC handlers await the shared startup promise as needed.
   void startDatabase();
