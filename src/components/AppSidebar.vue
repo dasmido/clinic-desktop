@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useColorMode } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 import { useAuth } from '@/modules/auth'
-import { defineShortcuts, extractShortcuts } from '@nuxt/ui/runtime/composables/defineShortcuts.js'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -14,35 +13,6 @@ const { currentUser, logout } = useAuth()
 const open = defineModel<boolean>('open', { default: true })
 
 const colorMode = useColorMode()
-
-const teams = ref([
-  {
-    label: 'MyClinic',
-    avatar: {
-      src: 'https://github.com/nuxt.png',
-      alt: 'Nuxt'
-    }
-  }
-])
-const selectedTeam = ref(teams.value[0])
-
-const teamsItems = computed<DropdownMenuItem[][]>(() => {
-  return [
-    teams.value.map((team, index) => ({
-      ...team,
-      kbds: ['meta', String(index + 1)],
-      onSelect() {
-        selectedTeam.value = team
-      }
-    })),
-    [
-      {
-        label: t('sidebar.createTeam'),
-        icon: 'i-lucide-circle-plus'
-      }
-    ]
-  ]
-})
 
 function getItems() {
   return [
@@ -60,11 +30,6 @@ function getItems() {
       label: t('sidebar.finance'),
       icon: 'i-lucide-wallet-cards',
       to: '/finance'
-    },
-    {
-      label: t('sidebar.settings'),
-      icon: 'i-lucide-settings',
-      to: '/settings/general'
     }
   ] satisfies NavigationMenuItem[]
 }
@@ -84,14 +49,6 @@ async function onLogout() {
 
 const userItems = computed<DropdownMenuItem[][]>(() => [
   [
-    {
-      label: t('user.profile'),
-      icon: 'i-lucide-user'
-    },
-    {
-      label: t('user.billing'),
-      icon: 'i-lucide-credit-card'
-    },
     {
       label: t('user.settings'),
       icon: 'i-lucide-settings',
@@ -136,12 +93,6 @@ const userItems = computed<DropdownMenuItem[][]>(() => [
   ],
   [
     {
-      label: t('user.github'),
-      icon: 'i-simple-icons-github',
-      to: 'https://github.com/nuxt/ui',
-      target: '_blank'
-    },
-    {
       label: t('user.logout'),
       icon: 'i-lucide-log-out',
       onSelect: onLogout
@@ -149,7 +100,6 @@ const userItems = computed<DropdownMenuItem[][]>(() => [
   ]
 ])
 
-defineShortcuts(extractShortcuts(teamsItems.value))
 </script>
 
 <template>
@@ -164,23 +114,9 @@ defineShortcuts(extractShortcuts(teamsItems.value))
     }"
   >
     <template #header>
-      <UDropdownMenu
-        :items="teamsItems"
-        :content="{ align: 'start', collisionPadding: 12 }"
-        :ui="{ content: 'w-(--reka-dropdown-menu-trigger-width) min-w-48' }"
-      >
-        <UButton
-          v-bind="selectedTeam"
-          trailing-icon="i-lucide-chevrons-up-down"
-          color="neutral"
-          variant="ghost"
-          square
-          class="w-full data-[state=open]:bg-elevated overflow-hidden"
-          :ui="{
-            trailingIcon: 'text-dimmed ms-auto'
-          }"
-        />
-      </UDropdownMenu>
+      <div class="px-2 py-1.5 font-semibold">
+        {{ t('sidebar.appname') }}
+      </div>
     </template>
 
     <template #default="{ state }">
