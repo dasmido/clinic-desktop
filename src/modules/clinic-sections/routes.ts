@@ -1,16 +1,16 @@
 import type { RouteRecordRaw } from 'vue-router'
 import SectionView from './views/SectionView.vue'
+import AppointmentsView from './views/AppointmentsView.vue'
+import PatientsView from './views/PatientsView.vue'
 
 export const clinicSectionRoutes: RouteRecordRaw[] = [
   {
     path: '/patients',
-    component: SectionView,
-    props: { titleKey: 'sections.patients' }
+    component: PatientsView
   },
   {
     path: '/appointments',
-    component: SectionView,
-    props: { titleKey: 'sections.appointments' }
+    component: AppointmentsView
   },
   {
     path: '/finance',
