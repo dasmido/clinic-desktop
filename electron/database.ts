@@ -5,7 +5,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
+import type { Database } from '../src/database/types.js';
 
 export type QueryValue = string | number | boolean | Date | null;
 
@@ -19,6 +21,7 @@ type PostgresInstance = {
 
 let postgres: PostgresInstance | null = null;
 let startup: Promise<PostgresInstance> | null = null;
+let db: Kysely<Database> | null = null;
 
 export type DatabaseQueryResult = {
   rows: Record<string, unknown>[];
@@ -107,6 +110,18 @@ function createPgClient(database = 'postgres') {
 
   return new Client({
     database,
+    host: 'localhost',
+    password: 'password',
+    port: 5432,
+    user: 'postgres',
+  });
+}
+
+function createPgPool() {
+  const { Pool } = pg;
+
+  return new Pool({
+    database: APPLICATION_DATABASE,
     host: 'localhost',
     password: 'password',
     port: 5432,
@@ -213,16 +228,69 @@ async function ensureApplicationDatabase() {
   }
 }
 
-async function ensureUsersTable() {
-  await queryDatabase(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'staff',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )
-  `);
+function getDatabaseMigrationRoots() {
+  if (app.isPackaged) {
+    return [
+      path.join(process.resourcesPath, 'database', 'migrations'),
+      path.join(app.getAppPath(), 'src', 'database', 'migrations'),
+    ];
+  }
+
+  return [path.join(process.cwd(), 'src', 'database', 'migrations')];
+}
+
+async function getDatabaseMigrationFiles() {
+  const migrationFiles = new Map<string, string>();
+
+  for (const migrationRoot of getDatabaseMigrationRoots()) {
+    const entries = await fs.readdir(migrationRoot, { withFileTypes: true }).catch(() => []);
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.sql') || migrationFiles.has(entry.name)) continue;
+
+      migrationFiles.set(entry.name, path.join(migrationRoot, entry.name));
+    }
+  }
+
+  return [...migrationFiles.entries()].sort(([firstMigration], [secondMigration]) => (
+    firstMigration.localeCompare(secondMigration)
+  ));
+}
+
+async function applyDatabaseMigrations() {
+  const migrationFiles = await getDatabaseMigrationFiles();
+  const client = createPgClient(APPLICATION_DATABASE);
+
+  await client.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+
+    for (const [migrationName, migrationFile] of migrationFiles) {
+      const applied = await client.query('SELECT 1 FROM schema_migrations WHERE name = $1', [migrationName]);
+      if (applied.rowCount) continue;
+
+      const sql = await fs.readFile(migrationFile, 'utf8');
+      if (!sql.trim()) continue;
+
+      await client.query('BEGIN');
+      try {
+        await client.query(sql);
+        await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [migrationName]);
+        await client.query('COMMIT');
+        console.info(`[database] applied migration ${migrationName}`);
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      }
+    }
+  } finally {
+    await client.end();
+  }
 }
 
 export async function startDatabase() {
@@ -238,7 +306,7 @@ export async function startDatabase() {
     const instance = await startPostgresProcess();
     await ensureApplicationDatabase();
     postgres = instance;
-    await ensureUsersTable();
+    await applyDatabaseMigrations();
     return instance;
   })().catch((error) => {
     startup = null;
@@ -246,6 +314,18 @@ export async function startDatabase() {
   });
 
   return startup;
+}
+
+export async function getDatabase() {
+  await startDatabase();
+
+  db ??= new Kysely<Database>({
+    dialect: new PostgresDialect({
+      pool: createPgPool(),
+    }),
+  });
+
+  return db;
 }
 
 export async function queryDatabase(
@@ -269,6 +349,9 @@ export async function queryDatabase(
 }
 
 export async function stopDatabase() {
+  await db?.destroy();
+  db = null;
+
   if (!postgres) return;
 
   const instance = postgres;

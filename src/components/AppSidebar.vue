@@ -4,7 +4,7 @@ import { useColorMode } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
-import { useAuth } from '@/lib/auth'
+import { useAuth } from '@/modules/auth'
 import { defineShortcuts, extractShortcuts } from '@nuxt/ui/runtime/composables/defineShortcuts.js'
 
 const { t } = useI18n()

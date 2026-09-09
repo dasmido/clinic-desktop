@@ -6,7 +6,6 @@ type AuthUser = {
   role: string
 }
 
-// Module-level singleton so all components share the same reactive session state.
 const currentUser = ref<AuthUser | null>(null)
 const usersExist = ref<boolean | null>(null)
 

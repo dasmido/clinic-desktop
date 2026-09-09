@@ -1,47 +1,16 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import HomeView from './views/HomeView.vue'
-import SectionView from './views/SectionView.vue'
-import SettingsGeneralView from './views/SettingsGeneralView.vue'
-import LoginView from './views/LoginView.vue'
-import RegisterView from './views/RegisterView.vue'
-import { useAuth } from './lib/auth'
+import { authRoutes, useAuth } from './modules/auth'
+import { clinicSectionRoutes } from './modules/clinic-sections/routes'
+import { dashboardRoutes } from './modules/dashboard/routes'
+import { settingsRoutes } from './modules/settings/routes'
 
 export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
-    {
-      path: '/',
-      component: HomeView
-    },
-    {
-      path: '/patients',
-      component: SectionView,
-      props: { titleKey: 'sections.patients' }
-    },
-    {
-      path: '/appointments',
-      component: SectionView,
-      props: { titleKey: 'sections.appointments' }
-    },
-    {
-      path: '/finance',
-      component: SectionView,
-      props: { titleKey: 'sections.finance' }
-    },
-    {
-      path: '/settings/general',
-      component: SettingsGeneralView
-    },
-    {
-      path: '/login',
-      component: LoginView,
-      meta: { public: true }
-    },
-    {
-      path: '/register',
-      component: RegisterView,
-      meta: { public: true }
-    }
+    ...dashboardRoutes,
+    ...clinicSectionRoutes,
+    ...settingsRoutes,
+    ...authRoutes
   ]
 })
 

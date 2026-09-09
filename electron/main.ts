@@ -1,14 +1,17 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import bcrypt from 'bcryptjs';
-import { queryDatabase, startDatabase, stopDatabase, type QueryValue } from './database.js';
+import { getDatabase, queryDatabase, startDatabase, stopDatabase, type QueryValue } from './database.js';
+import {
+  countUsers,
+  createUser,
+  verifyUserCredentials,
+  type AuthUser,
+} from './repositories/users.repository.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let win: BrowserWindow | null;
-
-type AuthUser = { id: number; username: string; role: string };
 
 // Session lives only in memory for the running instance; login is required every launch.
 let currentSessionUser: AuthUser | null = null;
@@ -37,33 +40,23 @@ function assertValidCredentials(username: unknown, password: unknown) {
   }
 }
 
-async function createUser(username: string, password: string, role: string): Promise<AuthUser> {
-  const passwordHash = await bcrypt.hash(password, 10);
-  const result = await queryDatabase(
-    'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username, role',
-    [username.trim(), passwordHash, role],
-  );
-  return result.rows[0] as AuthUser;
-}
-
 function registerAuthHandlers() {
   ipcMain.handle('auth:has-users', async () => {
-    const result = await queryDatabase('SELECT COUNT(*) AS count FROM users');
-    return Number(result.rows[0]?.count ?? 0) > 0;
+    return (await countUsers(await getDatabase())) > 0;
   });
 
   ipcMain.handle('auth:register', async (_event, username: string, password: string) => {
     assertValidCredentials(username, password);
 
-    const existing = await queryDatabase('SELECT COUNT(*) AS count FROM users');
-    const hasUsers = Number(existing.rows[0]?.count ?? 0) > 0;
+    const db = await getDatabase();
+    const hasUsers = (await countUsers(db)) > 0;
 
     if (hasUsers && currentSessionUser?.role !== 'admin') {
       throw new Error('Registration is closed. Ask an administrator to create your account.');
     }
 
     const role = hasUsers ? 'staff' : 'admin';
-    const user = await createUser(username, password, role);
+  const user = await createUser(db, username, password, role);
 
     if (!hasUsers) {
       currentSessionUser = user;
@@ -75,17 +68,13 @@ function registerAuthHandlers() {
   ipcMain.handle('auth:login', async (_event, username: string, password: string) => {
     assertValidCredentials(username, password);
 
-    const result = await queryDatabase(
-      'SELECT id, username, password_hash, role FROM users WHERE username = $1',
-      [username.trim()],
-    );
-    const row = result.rows[0] as { id: number; username: string; password_hash: string; role: string } | undefined;
+    const user = await verifyUserCredentials(await getDatabase(), username, password);
 
-    if (!row || !(await bcrypt.compare(password, row.password_hash))) {
+    if (!user) {
       throw new Error('Invalid username or password.');
     }
 
-    currentSessionUser = { id: row.id, username: row.username, role: row.role };
+    currentSessionUser = user;
     return currentSessionUser;
   });
 
@@ -101,7 +90,7 @@ function registerAuthHandlers() {
       throw new Error('Only an administrator can create new users.');
     }
     assertValidCredentials(username, password);
-    return createUser(username, password, role === 'admin' ? 'admin' : 'staff');
+    return createUser(await getDatabase(), username, password, role === 'admin' ? 'admin' : 'staff');
   });
 }
 
