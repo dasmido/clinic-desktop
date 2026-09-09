@@ -12,12 +12,20 @@ export type AppointmentStatus = 'scheduled' | 'arrived' | 'completed' | 'cancell
 export type Appointment = {
   id: number;
   patient_id: number;
+  doctor_id: number | null;
   patient_name: string;
   patient_phone: string;
+  doctor_name: string | null;
   starts_at: string;
   ends_at: string;
   status: AppointmentStatus;
   notes: string;
+};
+
+export type Doctor = {
+  id: number;
+  user_id: number;
+  display_name: string;
 };
 
 export async function databaseQuery<Row>(text: string, values: unknown[] = []): Promise<Row[]> {

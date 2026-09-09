@@ -1,6 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router'
 import SettingsGeneralView from './views/SettingsGeneralView.vue'
 import SettingsUsersView from './views/SettingsUsersView.vue'
+import SettingsDoctorsView from './views/SettingsDoctorsView.vue'
 
 export const settingsRoutes: RouteRecordRaw[] = [
   {
@@ -10,5 +11,9 @@ export const settingsRoutes: RouteRecordRaw[] = [
   {
     path: '/settings/users',
     component: SettingsUsersView
+  },
+  {
+    path: '/settings/doctors',
+    component: SettingsDoctorsView
   }
 ]

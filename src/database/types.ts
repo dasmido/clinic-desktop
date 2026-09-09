@@ -27,6 +27,7 @@ export type PatientsTable = {
 export type AppointmentsTable = {
   id: Generated<number>;
   patient_id: number;
+  doctor_id: number | null;
   starts_at: Timestamp;
   ends_at: Timestamp;
   status: ColumnType<AppointmentStatus, AppointmentStatus | undefined, AppointmentStatus>;
@@ -35,10 +36,27 @@ export type AppointmentsTable = {
   updated_at: Timestamp;
 };
 
+export type DoctorsTable = {
+  id: Generated<number>;
+  user_id: number;
+  display_name: string;
+  created_at: Timestamp;
+};
+
+export type DoctorAvailabilityTable = {
+  id: Generated<number>;
+  doctor_id: number;
+  day_of_week: number;
+  starts_at: string;
+  ends_at: string;
+};
+
 export type Database = {
   users: UsersTable;
   patients: PatientsTable;
   appointments: AppointmentsTable;
+  doctors: DoctorsTable;
+  doctor_availability: DoctorAvailabilityTable;
 };
 
 export type User = Selectable<UsersTable>;
@@ -52,3 +70,7 @@ export type PatientUpdate = Updateable<PatientsTable>;
 export type Appointment = Selectable<AppointmentsTable>;
 export type NewAppointment = Insertable<AppointmentsTable>;
 export type AppointmentUpdate = Updateable<AppointmentsTable>;
+
+export type Doctor = Selectable<DoctorsTable>;
+export type NewDoctor = Insertable<DoctorsTable>;
+export type DoctorAvailability = Selectable<DoctorAvailabilityTable>;
