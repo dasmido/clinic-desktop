@@ -3,7 +3,7 @@ import type { ColumnType, Generated, Insertable, Selectable, Updateable } from '
 export type Timestamp = ColumnType<Date, Date | string | undefined, Date | string>;
 export type DateOnly = ColumnType<string | null, string | null | undefined, string | null>;
 
-export type UserRole = 'admin' | 'staff';
+export type UserRole = 'doctor' | 'nurse' | 'lab' | 'pharmacy' | 'moderator' | 'admin';
 export type AppointmentStatus = 'scheduled' | 'arrived' | 'completed' | 'cancelled';
 
 export type UsersTable = {

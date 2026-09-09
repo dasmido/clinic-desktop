@@ -1,9 +1,11 @@
 import { ref } from 'vue'
 
-type AuthUser = {
+export type UserRole = 'doctor' | 'nurse' | 'lab' | 'pharmacy' | 'moderator' | 'admin'
+
+export type AuthUser = {
   id: number
   username: string
-  role: string
+  role: UserRole
 }
 
 const currentUser = ref<AuthUser | null>(null)

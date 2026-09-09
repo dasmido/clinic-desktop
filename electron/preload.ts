@@ -13,5 +13,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 		getCurrentUser: () => ipcRenderer.invoke('auth:get-current-user'),
 		createUser: (username: string, password: string, role: string) =>
 			ipcRenderer.invoke('auth:create-user', username, password, role),
+		listUsers: () => ipcRenderer.invoke('auth:list-users'),
 	},
 });

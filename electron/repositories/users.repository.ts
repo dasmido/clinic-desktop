@@ -21,6 +21,14 @@ export async function countUsers(db: Kysely<Database>) {
   return Number(result.count);
 }
 
+export async function listUsers(db: Kysely<Database>): Promise<AuthUser[]> {
+  return db
+    .selectFrom('users')
+    .select(['id', 'username', 'role'])
+    .orderBy('username', 'asc')
+    .execute();
+}
+
 export async function createUser(
   db: Kysely<Database>,
   username: string,

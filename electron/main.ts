@@ -5,6 +5,7 @@ import { getDatabase, queryDatabase, startDatabase, stopDatabase, type QueryValu
 import {
   countUsers,
   createUser,
+  listUsers,
   verifyUserCredentials,
   type AuthUser,
 } from './repositories/users.repository.js';
@@ -15,6 +16,15 @@ let win: BrowserWindow | null;
 
 // Session lives only in memory for the running instance; login is required every launch.
 let currentSessionUser: AuthUser | null = null;
+
+const userRoles = new Set<AuthUser['role']>([
+  'doctor',
+  'nurse',
+  'lab',
+  'pharmacy',
+  'moderator',
+  'admin',
+]);
 
 function registerDatabaseHandlers() {
   ipcMain.handle('database:is-ready', async () => {
@@ -40,6 +50,12 @@ function assertValidCredentials(username: unknown, password: unknown) {
   }
 }
 
+function assertValidUserRole(role: unknown): asserts role is AuthUser['role'] {
+  if (typeof role !== 'string' || !userRoles.has(role as AuthUser['role'])) {
+    throw new Error('A valid user role is required.');
+  }
+}
+
 function registerAuthHandlers() {
   ipcMain.handle('auth:has-users', async () => {
     return (await countUsers(await getDatabase())) > 0;
@@ -55,8 +71,8 @@ function registerAuthHandlers() {
       throw new Error('Registration is closed. Ask an administrator to create your account.');
     }
 
-    const role = hasUsers ? 'staff' : 'admin';
-  const user = await createUser(db, username, password, role);
+    const role = hasUsers ? 'nurse' : 'admin';
+    const user = await createUser(db, username, password, role);
 
     if (!hasUsers) {
       currentSessionUser = user;
@@ -90,7 +106,15 @@ function registerAuthHandlers() {
       throw new Error('Only an administrator can create new users.');
     }
     assertValidCredentials(username, password);
-    return createUser(await getDatabase(), username, password, role === 'admin' ? 'admin' : 'staff');
+    assertValidUserRole(role);
+    return createUser(await getDatabase(), username, password, role);
+  });
+
+  ipcMain.handle('auth:list-users', async () => {
+    if (currentSessionUser?.role !== 'admin') {
+      throw new Error('Only an administrator can view user accounts.');
+    }
+    return listUsers(await getDatabase());
   });
 }
 

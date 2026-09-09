@@ -53,7 +53,10 @@ const userItems = computed<DropdownMenuItem[][]>(() => [
       label: t('user.settings'),
       icon: 'i-lucide-settings',
       to: '/settings'
-    }
+    },
+    ...(currentUser.value?.role === 'admin'
+      ? [{ label: 'فريق العيادة', icon: 'i-lucide-users-round', to: '/settings/users' }]
+      : [])
   ],
   [
     {

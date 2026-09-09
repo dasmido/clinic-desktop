@@ -8,8 +8,10 @@ type DatabaseQueryResult = {
 type AuthUser = {
   id: number;
   username: string;
-  role: string;
+  role: UserRole;
 };
+
+type UserRole = 'doctor' | 'nurse' | 'lab' | 'pharmacy' | 'moderator' | 'admin';
 
 declare global {
   interface Window {
@@ -24,7 +26,8 @@ declare global {
         login(username: string, password: string): Promise<AuthUser>;
         logout(): Promise<boolean>;
         getCurrentUser(): Promise<AuthUser | null>;
-        createUser(username: string, password: string, role: string): Promise<AuthUser>;
+        createUser(username: string, password: string, role: UserRole): Promise<AuthUser>;
+        listUsers(): Promise<AuthUser[]>;
       };
     };
   }
