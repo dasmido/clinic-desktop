@@ -67,6 +67,8 @@ export type FinanceSummary = {
 export type MedicalRecord = {
   id: number;
   patient_id: number;
+  doctor_id: number | null;
+  doctor_name: string | null;
   recorded_by_user_id: number | null;
   recorded_by_name: string | null;
   visit_date: string;

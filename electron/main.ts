@@ -61,6 +61,8 @@ import {
   listMedicalRecordsByPatient,
   type CreateAttachmentInput,
   type CreateMedicalRecordInput,
+  type UpdateMedicalRecordInput,
+  updateMedicalRecord,
 } from './repositories/medical-records.repository.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -256,6 +258,11 @@ function registerMedicalRecordHandlers() {
   ipcMain.handle('medical-records:create', async (_event, input: CreateMedicalRecordInput) => {
     assertSignedIn();
     return createMedicalRecord(await getDatabase(), input);
+  });
+
+  ipcMain.handle('medical-records:update', async (_event, recordId: number, input: UpdateMedicalRecordInput) => {
+    assertSignedIn();
+    return updateMedicalRecord(await getDatabase(), recordId, input);
   });
 
   ipcMain.handle('medical-records:delete', async (_event, recordId: number) => {

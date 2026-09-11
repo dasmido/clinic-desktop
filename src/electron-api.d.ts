@@ -63,6 +63,7 @@ type TransactionInput = {
 
 type MedicalRecordInput = {
   patient_id: number;
+  doctor_id: number | null;
   recorded_by_user_id: number | null;
   visit_date: string;
   chief_complaint: string;
@@ -133,6 +134,7 @@ declare global {
       medicalRecords: {
         listByPatient(patientId: number): Promise<{ records: MedicalRecord[]; attachments: MedicalRecordAttachment[] }>;
         create(input: MedicalRecordInput): Promise<MedicalRecord>;
+        update(recordId: number, input: Omit<MedicalRecordInput, 'patient_id' | 'recorded_by_user_id'>): Promise<MedicalRecord>;
         delete(recordId: number): Promise<boolean>;
         addAttachment(input: AttachmentInput): Promise<MedicalRecordAttachment>;
         deleteAttachment(attachmentId: number): Promise<boolean>;

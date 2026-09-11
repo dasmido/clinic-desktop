@@ -2,21 +2,27 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/modules/auth'
-import type { MedicalRecord, MedicalRecordAttachment, Patient } from '@/modules/clinic-data'
+import type { Doctor, MedicalRecord, MedicalRecordAttachment, Patient } from '@/modules/clinic-data'
 
 const route = useRoute()
 const router = useRouter()
 const { currentUser } = useAuth()
 const patientId = Number(route.params.patientId)
 const patient = ref<Patient | null>(null)
-const records = ref<MedicalRecord[]>([])
+const doctors = ref<Doctor[]>([])
+const allRecords = ref<MedicalRecord[]>([])
 const attachments = ref<MedicalRecordAttachment[]>([])
 const isLoading = ref(false)
 const isRecordModalOpen = ref(false)
+const editingRecordId = ref<number | null>(null)
+const currentPage = ref(1)
+const pageSize = 3
 const errorMessage = ref('')
-const form = ref({ visitDate: new Date().toISOString().slice(0, 16), chiefComplaint: '', diagnosis: '', treatmentPlan: '', clinicalNotes: '', bloodPressure: '', temperature: '', weight: '' })
+const form = ref({ visitDate: new Date().toISOString().slice(0, 16), doctorId: '', chiefComplaint: '', diagnosis: '', treatmentPlan: '', clinicalNotes: '', bloodPressure: '', temperature: '', weight: '' })
 
-const attachmentsByRecord = computed(() => new Map(records.value.map((record) => [record.id, attachments.value.filter((attachment) => attachment.medical_record_id === record.id)])))
+const records = computed(() => allRecords.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
+const attachmentsByRecord = computed(() => new Map(allRecords.value.map((record) => [record.id, attachments.value.filter((attachment) => attachment.medical_record_id === record.id)])))
+const totalPages = computed(() => Math.max(1, Math.ceil(allRecords.value.length / pageSize)))
 
 function dateTime(value: string) {
   return new Intl.DateTimeFormat('ar-SA', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
@@ -28,7 +34,25 @@ function fileSize(value: string) {
 }
 
 function openRecordModal() {
-  form.value = { visitDate: new Date().toISOString().slice(0, 16), chiefComplaint: '', diagnosis: '', treatmentPlan: '', clinicalNotes: '', bloodPressure: '', temperature: '', weight: '' }
+  editingRecordId.value = null
+  form.value = { visitDate: new Date().toISOString().slice(0, 16), doctorId: '', chiefComplaint: '', diagnosis: '', treatmentPlan: '', clinicalNotes: '', bloodPressure: '', temperature: '', weight: '' }
+  errorMessage.value = ''
+  isRecordModalOpen.value = true
+}
+
+function editRecord(record: MedicalRecord) {
+  editingRecordId.value = record.id
+  form.value = {
+    visitDate: new Date(record.visit_date).toISOString().slice(0, 16),
+    doctorId: record.doctor_id ? String(record.doctor_id) : '',
+    chiefComplaint: record.chief_complaint,
+    diagnosis: record.diagnosis,
+    treatmentPlan: record.treatment_plan,
+    clinicalNotes: record.clinical_notes,
+    bloodPressure: record.blood_pressure,
+    temperature: record.temperature_celsius ?? '',
+    weight: record.weight_kg ?? '',
+  }
   errorMessage.value = ''
   isRecordModalOpen.value = true
 }
@@ -40,13 +64,16 @@ async function loadRecords() {
   }
   isLoading.value = true
   try {
-    const [patients, medicalData] = await Promise.all([
+    const [patients, doctorRows, medicalData] = await Promise.all([
       window.electronAPI.patients.list(),
+      window.electronAPI.doctors.list(),
       window.electronAPI.medicalRecords.listByPatient(patientId),
     ])
     patient.value = patients.find((candidate) => candidate.id === patientId) ?? null
-    records.value = medicalData.records
+    doctors.value = doctorRows
+    allRecords.value = medicalData.records
     attachments.value = medicalData.attachments
+    currentPage.value = Math.min(currentPage.value, totalPages.value)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر تحميل السجل الطبي.'
   } finally {
@@ -62,9 +89,8 @@ async function saveRecord() {
   }
   isLoading.value = true
   try {
-    await window.electronAPI.medicalRecords.create({
-      patient_id: patientId,
-      recorded_by_user_id: currentUser.value?.id ?? null,
+    const recordInput = {
+      doctor_id: data.doctorId ? Number(data.doctorId) : null,
       visit_date: new Date(data.visitDate).toISOString(),
       chief_complaint: data.chiefComplaint.trim(),
       diagnosis: data.diagnosis.trim(),
@@ -73,7 +99,17 @@ async function saveRecord() {
       blood_pressure: data.bloodPressure.trim(),
       temperature_celsius: data.temperature ? Number(data.temperature) : null,
       weight_kg: data.weight ? Number(data.weight) : null,
-    })
+    }
+    if (editingRecordId.value) {
+      await window.electronAPI.medicalRecords.update(editingRecordId.value, recordInput)
+    } else {
+      await window.electronAPI.medicalRecords.create({
+        patient_id: patientId,
+        recorded_by_user_id: currentUser.value?.id ?? null,
+        ...recordInput,
+      })
+    }
+    editingRecordId.value = null
     isRecordModalOpen.value = false
     await loadRecords()
   } catch (error) {
@@ -150,19 +186,8 @@ onMounted(loadRecords)
     <div v-if="isLoading && !records.length" class="flex min-h-56 items-center justify-center"><UIcon name="i-lucide-loader-circle" class="size-5 animate-spin text-muted" /></div>
     <div v-else-if="!patient" class="border border-dashed border-default p-10 text-center"><p class="font-semibold text-highlighted">لم يتم العثور على المراجع</p></div>
     <div v-else-if="!records.length" class="border border-dashed border-default p-10 text-center"><UIcon name="i-lucide-heart-pulse" class="mx-auto size-8 text-dimmed" /><p class="mt-3 font-semibold text-highlighted">لا توجد زيارات مسجلة</p><p class="mt-1 text-sm text-muted">أضف أول زيارة لتوثيق الحالة الصحية والفحوصات.</p></div>
-    <div v-else class="space-y-4"><article v-for="record in records" :key="record.id" class="border border-default bg-default p-5 shadow-sm"><div class="flex flex-col gap-3 border-b border-default pb-4 sm:flex-row sm:items-start sm:justify-between"><div><p class="font-semibold text-highlighted">زيارة {{ dateTime(record.visit_date) }}</p><p class="mt-1 text-xs text-muted">سجلها {{ record.recorded_by_name ?? 'مستخدم العيادة' }}</p></div><UButton icon="i-lucide-paperclip" color="neutral" variant="soft" label="إضافة فحص" :loading="isLoading" @click="addAttachment(record)" /></div><div class="grid gap-5 py-4 sm:grid-cols-2"><div><p class="text-xs font-medium text-muted">الشكوى الرئيسية</p><p class="mt-1 whitespace-pre-wrap text-sm text-highlighted">{{ record.chief_complaint || '—' }}</p></div><div><p class="text-xs font-medium text-muted">التشخيص</p><p class="mt-1 whitespace-pre-wrap text-sm text-highlighted">{{ record.diagnosis || '—' }}</p></div><div><p class="text-xs font-medium text-muted">الخطة العلاجية</p><p class="mt-1 whitespace-pre-wrap text-sm text-highlighted">{{ record.treatment_plan || '—' }}</p></div><div><p class="text-xs font-medium text-muted">المؤشرات الحيوية</p><p class="mt-1 text-sm text-highlighted">{{ [record.blood_pressure && `الضغط ${record.blood_pressure}`, record.temperature_celsius && `الحرارة ${record.temperature_celsius}°`, record.weight_kg && `الوزن ${record.weight_kg} كغ`].filter(Boolean).join(' · ') || '—' }}</p></div></div><div v-if="record.clinical_notes" class="border-t border-default pt-4"><p class="text-xs font-medium text-muted">ملاحظات سريرية</p><p class="mt-1 whitespace-pre-wrap text-sm text-highlighted">{{ record.clinical_notes }}</p></div><div v-if="attachmentsByRecord.get(record.id)?.length" class="mt-4 border-t border-default pt-4"><p class="mb-2 text-xs font-medium text-muted">التحاليل والفحوصات</p><div class="flex flex-wrap gap-2"><UButton v-for="attachment in attachmentsByRecord.get(record.id)" :key="attachment.id" icon="i-lucide-file-text" color="neutral" variant="soft" :label="`${attachment.original_name} (${fileSize(attachment.file_size_bytes)})`" @click="openAttachment(attachment)" /></div></div></article></div>
-    <UModal v-model:open="isRecordModalOpen" title="تسجيل زيارة طبية"><template #body><form class="space-y-4" @submit.prevent="saveRecord"><UFormField label="تاريخ ووقت الزيارة" required><UInput v-model="form.visitDate" type="datetime-local" class="w-full" autofocus /></UFormField><div class="grid gap-4 sm:grid-cols-2"><UFormField label="الشكوى الرئيسية"><UTextarea v-model="form.chiefComplaint" class="w-full" :rows="3" /></UFormField><UFormField label="التشخيص"><UTextarea v-model="form.diagnosis" class="w-full" :rows="3" /></UFormField></div><UFormField label="الخطة العلاجية"><UTextarea v-model="form.treatmentPlan" class="w-full" :rows="3" /></UFormField><div class="grid gap-4 sm:grid-cols-3"><UFormField label="ضغط الدم"><UInput v-model="form.bloodPressure" placeholder="120/80" class="w-full" dir="ltr" /></UFormField><UFormField label="الحرارة (°م)"><UInput v-model="form.temperature" type="number" step="0.1" class="w-full" /></UFormField><UFormField label="الوزن (كغ)"><UInput v-model="form.weight" type="number" step="0.1" class="w-full" /></UFormField></div><UFormField label="ملاحظات سريرية"><UTextarea v-model="form.clinicalNotes" class="w-full" :rows="3" /></UFormField><p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p><div class="flex justify-end gap-2 pt-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isRecordModalOpen = false" /><UButton type="submit" :loading="isLoading" label="حفظ الزيارة" /></div></form></template></UModal>
-    <section v-if="records.length" class="border border-default bg-elevated/20 p-4">
-      <p class="text-sm font-semibold text-highlighted">إدارة السجل</p>
-      <div class="mt-3 space-y-2">
-        <div v-for="record in records" :key="`delete-${record.id}`" class="flex items-center justify-between gap-3 border-b border-default pb-2 last:border-0 last:pb-0">
-          <span class="text-sm text-muted">زيارة {{ dateTime(record.visit_date) }}</span>
-          <div class="flex items-center gap-1">
-            <UButton v-for="attachment in attachmentsByRecord.get(record.id)" :key="attachment.id" icon="i-lucide-file-x-2" color="error" variant="ghost" :aria-label="`حذف ${attachment.original_name}`" @click="deleteAttachment(attachment)" />
-            <UButton icon="i-lucide-trash-2" color="error" variant="ghost" aria-label="حذف الزيارة" @click="deleteRecord(record)" />
-          </div>
-        </div>
-      </div>
-    </section>
+    <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><article v-for="record in records" :key="record.id" class="flex min-w-0 flex-col border border-default bg-default p-4 shadow-sm"><div class="flex items-start justify-between gap-2 border-b border-default pb-3"><div class="min-w-0"><p class="truncate font-semibold text-highlighted">زيارة {{ dateTime(record.visit_date) }}</p><p class="mt-1 truncate text-xs text-muted">سجلها {{ record.recorded_by_name ?? 'مستخدم العيادة' }}</p></div><div class="flex shrink-0 items-center gap-1"><UButton icon="i-lucide-pencil" color="neutral" variant="ghost" size="sm" aria-label="تعديل الزيارة" @click="editRecord(record)" /><UButton icon="i-lucide-trash-2" color="error" variant="ghost" size="sm" aria-label="حذف الزيارة" @click="deleteRecord(record)" /></div></div><div class="flex-1 space-y-3 py-3"><div><p class="text-xs font-medium text-muted">الشكوى الرئيسية</p><p class="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-highlighted">{{ record.chief_complaint || '—' }}</p></div><div><p class="text-xs font-medium text-muted">التشخيص</p><p class="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-highlighted">{{ record.diagnosis || '—' }}</p></div><div><p class="text-xs font-medium text-muted">الخطة العلاجية</p><p class="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-highlighted">{{ record.treatment_plan || '—' }}</p></div><div><p class="text-xs font-medium text-muted">المؤشرات الحيوية</p><p class="mt-1 text-sm text-highlighted">{{ [record.blood_pressure && `الضغط ${record.blood_pressure}`, record.temperature_celsius && `الحرارة ${record.temperature_celsius}°`, record.weight_kg && `الوزن ${record.weight_kg} كغ`].filter(Boolean).join(' · ') || '—' }}</p></div><div v-if="record.clinical_notes"><p class="text-xs font-medium text-muted">ملاحظات سريرية</p><p class="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-highlighted">{{ record.clinical_notes }}</p></div></div><div class="mt-auto border-t border-default pt-3"><div class="flex items-center justify-between gap-2"><p class="text-xs font-medium text-muted">التحاليل والفحوصات</p><UButton icon="i-lucide-paperclip" color="neutral" variant="soft" size="sm" aria-label="إضافة فحص" :loading="isLoading" @click="addAttachment(record)" /></div><div v-if="attachmentsByRecord.get(record.id)?.length" class="mt-2 space-y-1"><div v-for="attachment in attachmentsByRecord.get(record.id)" :key="attachment.id" class="flex min-w-0 items-center gap-1"><UButton class="min-w-0 flex-1 justify-start" icon="i-lucide-file-text" color="neutral" variant="ghost" size="sm" :label="`${attachment.original_name} (${fileSize(attachment.file_size_bytes)})`" @click="openAttachment(attachment)" /><UButton icon="i-lucide-file-x-2" color="error" variant="ghost" size="sm" :aria-label="`حذف ${attachment.original_name}`" @click="deleteAttachment(attachment)" /></div></div><p v-else class="mt-2 text-xs text-dimmed">لا توجد مرفقات</p></div></article></div>
+    <UModal v-model:open="isRecordModalOpen" title="تسجيل زيارة طبية"><template #body><form class="space-y-4" @submit.prevent="saveRecord"><UFormField label="تاريخ ووقت الزيارة" required><UInput v-model="form.visitDate" type="datetime-local" class="w-full" autofocus /></UFormField><UFormField label="الطبيب"><USelect v-model="form.doctorId" :items="doctors.map((doctor) => ({ label: doctor.display_name, value: String(doctor.id) }))" placeholder="اختر الطبيب" class="w-full" /></UFormField><div class="grid gap-4 sm:grid-cols-2"><UFormField label="الشكوى الرئيسية"><UTextarea v-model="form.chiefComplaint" class="w-full" :rows="3" /></UFormField><UFormField label="التشخيص"><UTextarea v-model="form.diagnosis" class="w-full" :rows="3" /></UFormField></div><UFormField label="الخطة العلاجية"><UTextarea v-model="form.treatmentPlan" class="w-full" :rows="3" /></UFormField><div class="grid gap-4 sm:grid-cols-3"><UFormField label="ضغط الدم"><UInput v-model="form.bloodPressure" placeholder="120/80" class="w-full" dir="ltr" /></UFormField><UFormField label="الحرارة (°م)"><UInput v-model="form.temperature" type="number" step="0.1" class="w-full" /></UFormField><UFormField label="الوزن (كغ)"><UInput v-model="form.weight" type="number" step="0.1" class="w-full" /></UFormField></div><UFormField label="ملاحظات سريرية"><UTextarea v-model="form.clinicalNotes" class="w-full" :rows="3" /></UFormField><p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p><div class="flex justify-end gap-2 pt-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isRecordModalOpen = false" /><UButton type="submit" :loading="isLoading" label="حفظ الزيارة" /></div></form></template></UModal>
+    <div v-if="totalPages > 1" class="flex items-center justify-center gap-3"><UButton icon="i-lucide-chevron-right" color="neutral" variant="ghost" aria-label="الصفحة السابقة" :disabled="currentPage === 1" @click="currentPage -= 1" /><span class="text-sm text-muted">صفحة {{ currentPage }} من {{ totalPages }}</span><UButton icon="i-lucide-chevron-left" color="neutral" variant="ghost" aria-label="الصفحة التالية" :disabled="currentPage === totalPages" @click="currentPage += 1" /></div>
   </section>
 </template>

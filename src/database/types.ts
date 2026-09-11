@@ -87,6 +87,7 @@ export type FinancialTransactionsTable = {
 export type PatientMedicalRecordsTable = {
   id: Generated<number>;
   patient_id: number;
+  doctor_id: number | null;
   recorded_by_user_id: number | null;
   visit_date: Timestamp;
   chief_complaint: ColumnType<string, string | undefined, string>;

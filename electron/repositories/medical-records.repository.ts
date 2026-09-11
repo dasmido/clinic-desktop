@@ -1,10 +1,11 @@
 import type { Kysely } from 'kysely';
 import type { Database, PatientMedicalRecord, PatientRecordAttachment } from '../../src/database/types.js';
 
-export type MedicalRecordWithAuthor = PatientMedicalRecord & { recorded_by_name: string | null };
+export type MedicalRecordWithAuthor = PatientMedicalRecord & { recorded_by_name: string | null; doctor_name: string | null };
 
 export type CreateMedicalRecordInput = {
   patient_id: number;
+  doctor_id: number | null;
   recorded_by_user_id: number | null;
   visit_date: Date | string;
   chief_complaint: string;
@@ -15,6 +16,8 @@ export type CreateMedicalRecordInput = {
   temperature_celsius: number | null;
   weight_kg: number | null;
 };
+
+export type UpdateMedicalRecordInput = Omit<CreateMedicalRecordInput, 'patient_id' | 'recorded_by_user_id'>;
 
 export type CreateAttachmentInput = {
   medical_record_id: number;
@@ -41,8 +44,10 @@ export async function listMedicalRecordsByPatient(
   return db
     .selectFrom('patient_medical_records as records')
     .leftJoin('users', 'users.id', 'records.recorded_by_user_id')
+    .leftJoin('doctors', 'doctors.id', 'records.doctor_id')
     .selectAll('records')
     .select('users.username as recorded_by_name')
+    .select('doctors.display_name as doctor_name')
     .where('records.patient_id', '=', patientId)
     .orderBy('records.visit_date', 'desc')
     .execute();
@@ -55,6 +60,19 @@ export async function createMedicalRecord(
   return db
     .insertInto('patient_medical_records')
     .values(record)
+    .returningAll()
+    .executeTakeFirstOrThrow();
+}
+
+export async function updateMedicalRecord(
+  db: Kysely<Database>,
+  recordId: number,
+  record: UpdateMedicalRecordInput,
+): Promise<PatientMedicalRecord> {
+  return db
+    .updateTable('patient_medical_records')
+    .set(record)
+    .where('id', '=', recordId)
     .returningAll()
     .executeTakeFirstOrThrow();
 }
