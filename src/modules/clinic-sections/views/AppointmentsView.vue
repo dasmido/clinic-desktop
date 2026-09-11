@@ -13,6 +13,12 @@ const errorMessage = ref('')
 const editingAppointment = ref<Appointment | null>(null)
 const form = ref({ patientId: '', doctorId: '', startsAt: '', endsAt: '', status: 'scheduled' as AppointmentStatus, notes: '' })
 
+const isCalendarOpen = ref(false)
+const isCalendarLoading = ref(false)
+const calendarMonth = ref(new Date(`${selectedDate.value}T12:00:00`))
+const calendarAppointments = ref<Appointment[]>([])
+const weekdayLabels = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت']
+
 const statusMeta: Record<AppointmentStatus, { label: string; class: string }> = {
   scheduled: { label: 'مجدول', class: 'bg-blue-500/12 text-blue-700 dark:text-blue-300' },
   arrived: { label: 'حضر', class: 'bg-amber-500/12 text-amber-700 dark:text-amber-300' },
@@ -25,6 +31,43 @@ const visibleAppointments = computed(() => statusFilter.value === 'all'
   : appointments.value.filter((appointment) => appointment.status === statusFilter.value))
 
 const dayLabel = computed(() => new Intl.DateTimeFormat('ar-SA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${selectedDate.value}T12:00:00`)))
+
+const calendarMonthLabel = computed(() => new Intl.DateTimeFormat('ar-SA', { month: 'long', year: 'numeric' }).format(calendarMonth.value))
+
+function toLocalDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+const appointmentsByDate = computed(() => {
+  const map = new Map<string, Appointment[]>()
+  for (const appointment of calendarAppointments.value) {
+    const key = toLocalDateKey(new Date(appointment.starts_at))
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(appointment)
+  }
+  return map
+})
+
+const calendarWeeks = computed(() => {
+  const year = calendarMonth.value.getFullYear()
+  const month = calendarMonth.value.getMonth()
+  const firstDay = new Date(year, month, 1)
+  const gridStart = new Date(firstDay)
+  gridStart.setDate(gridStart.getDate() - firstDay.getDay())
+
+  const weeks: { date: Date; key: string; inMonth: boolean; count: number }[][] = []
+  const cursor = new Date(gridStart)
+  for (let week = 0; week < 6; week++) {
+    const days = []
+    for (let day = 0; day < 7; day++) {
+      const key = toLocalDateKey(cursor)
+      days.push({ date: new Date(cursor), key, inMonth: cursor.getMonth() === month, count: appointmentsByDate.value.get(key)?.length ?? 0 })
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    weeks.push(days)
+  }
+  return weeks
+})
 
 function localDateTime(date: Date) {
   const offset = date.getTimezoneOffset() * 60_000
@@ -77,6 +120,38 @@ async function loadPatients() {
 
 async function loadDoctors() {
   doctors.value = await window.electronAPI.doctors.list()
+}
+
+async function loadCalendarMonth() {
+  isCalendarLoading.value = true
+  try {
+    const from = new Date(calendarMonth.value.getFullYear(), calendarMonth.value.getMonth(), 1)
+    const to = new Date(calendarMonth.value.getFullYear(), calendarMonth.value.getMonth() + 1, 1)
+    calendarAppointments.value = await window.electronAPI.appointments.listForRange(from.toISOString(), to.toISOString())
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'تعذر تحميل بيانات التقويم.'
+  } finally {
+    isCalendarLoading.value = false
+  }
+}
+
+function openCalendar() {
+  calendarMonth.value = new Date(`${selectedDate.value}T12:00:00`)
+  isCalendarOpen.value = true
+  loadCalendarMonth()
+}
+
+function moveCalendarMonth(amount: number) {
+  const date = new Date(calendarMonth.value)
+  date.setDate(1)
+  date.setMonth(date.getMonth() + amount)
+  calendarMonth.value = date
+  loadCalendarMonth()
+}
+
+function selectCalendarDay(key: string) {
+  selectedDate.value = key
+  isCalendarOpen.value = false
 }
 
 async function saveAppointment() {
@@ -139,7 +214,10 @@ onMounted(async () => { await Promise.all([loadSchedule(), loadPatients(), loadD
   <section class="mx-auto w-full max-w-6xl space-y-6">
     <header class="flex flex-col gap-4 border-b border-default pb-5 sm:flex-row sm:items-end sm:justify-between">
       <div><p class="text-sm font-medium text-primary">جدولة اليوم</p><h1 class="mt-1 text-2xl font-bold text-highlighted">المواعيد</h1><p class="mt-1 text-sm text-muted">نظرة واضحة على حركة العيادة ومتابعة حالة كل زيارة.</p></div>
-      <UButton icon="i-lucide-calendar-plus" label="موعد جديد" :disabled="!patients.length || !doctors.length" @click="openCreateModal" />
+      <div class="flex items-center gap-2">
+        <UButton icon="i-lucide-calendar-days" label="عرض التقويم" color="neutral" variant="outline" @click="openCalendar" />
+        <UButton icon="i-lucide-calendar-plus" label="موعد جديد" :disabled="!patients.length || !doctors.length" @click="openCreateModal" />
+      </div>
     </header>
 
     <div class="flex flex-col gap-3 border border-default bg-elevated/20 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -172,6 +250,36 @@ onMounted(async () => { await Promise.all([loadSchedule(), loadPatients(), loadD
         <UFormField label="ملاحظات"><UTextarea v-model="form.notes" class="w-full" :rows="3" /></UFormField><p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p>
         <div class="flex justify-between gap-2 pt-2"><UButton v-if="editingAppointment" icon="i-lucide-trash-2" color="error" variant="ghost" aria-label="حذف الموعد" :loading="isLoading" @click="deleteAppointment" /><span class="flex gap-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isModalOpen = false" /><UButton type="submit" :loading="isLoading" :label="editingAppointment ? 'حفظ التعديلات' : 'إضافة الموعد'" /></span></div>
       </form></template>
+    </UModal>
+
+    <UModal v-model:open="isCalendarOpen" title="تقويم المواعيد" :ui="{ content: 'sm:max-w-4xl' }">
+      <template #body>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <UButton icon="i-lucide-chevron-right" color="neutral" variant="ghost" aria-label="الشهر السابق" @click="moveCalendarMonth(-1)" />
+            <p class="text-lg font-semibold text-highlighted">{{ calendarMonthLabel }}</p>
+            <UButton icon="i-lucide-chevron-left" color="neutral" variant="ghost" aria-label="الشهر التالي" @click="moveCalendarMonth(1)" />
+          </div>
+          <div v-if="isCalendarLoading" class="flex min-h-72 items-center justify-center"><UIcon name="i-lucide-loader-circle" class="size-6 animate-spin text-muted" /></div>
+          <div v-else class="overflow-hidden border border-default">
+            <div class="grid grid-cols-7 border-b border-default bg-elevated/35">
+              <span v-for="label in weekdayLabels" :key="label" class="p-2 text-center text-xs font-semibold text-muted">{{ label }}</span>
+            </div>
+            <div class="grid grid-cols-7">
+              <button
+                v-for="day in calendarWeeks.flat()"
+                :key="day.key"
+                class="flex min-h-20 flex-col items-center gap-1 border-b border-l border-default p-2 text-sm transition-colors last:border-l-0 hover:bg-elevated/35"
+                :class="[!day.inMonth && 'text-dimmed', day.key === selectedDate && 'bg-primary/10']"
+                @click="selectCalendarDay(day.key)"
+              >
+                <span class="font-medium">{{ day.date.getDate() }}</span>
+                <span v-if="day.count" class="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">{{ day.count }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
     </UModal>
   </section>
 </template>
