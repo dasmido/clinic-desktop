@@ -1,26 +1,37 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useToast } from '@nuxt/ui/composables'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 
 const { t } = useI18n()
 const router = useRouter()
+const toast = useToast()
 const { login } = useAuth()
 
 const username = ref('')
 const password = ref('')
-const error = ref('')
 const loading = ref(false)
 
+function formatLoginError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err)
+  const ipcPrefix = "Error invoking remote method 'auth:login': "
+
+  return message.startsWith(ipcPrefix) ? message.slice(ipcPrefix.length) : message
+}
+
 async function onSubmit() {
-  error.value = ''
   loading.value = true
   try {
     await login(username.value, password.value)
     await router.push('/')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : String(err)
+    toast.add({
+      title: t('auth.loginTitle'),
+      description: formatLoginError(err),
+      color: 'error',
+    })
   } finally {
     loading.value = false
   }
@@ -43,8 +54,6 @@ async function onSubmit() {
         <UFormField :label="t('auth.password')" name="password">
           <UInput v-model="password" type="password" class="w-full" />
         </UFormField>
-
-        <p v-if="error" class="text-error text-sm">{{ error }}</p>
 
         <UButton type="submit" block :loading="loading" :label="t('auth.login')" />
       </form>

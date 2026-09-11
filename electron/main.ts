@@ -444,6 +444,13 @@ function createWindow() {
     },
   });
 
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    console.error('[renderer] did-fail-load', errorCode, errorDescription);
+  });
+  win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    console.log('[renderer console]', level, message, `${sourceId}:${line}`);
+  });
+
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
