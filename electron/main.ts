@@ -64,6 +64,44 @@ import {
   type UpdateMedicalRecordInput,
   updateMedicalRecord,
 } from './repositories/medical-records.repository.js';
+import {
+  createPrescription,
+  deletePrescription,
+  listPrescriptionsByMedicalRecord,
+  listPrescriptionsByPatient,
+  updatePrescription,
+  updatePrescriptionStatus,
+  type CreatePrescriptionInput,
+  type UpdatePrescriptionInput,
+} from './repositories/prescriptions.repository.js';
+import type { PrescriptionStatus } from '../src/database/types.js';
+import {
+  createLabOrder,
+  createLabResult,
+  deleteLabOrder,
+  listLabOrdersByPatient,
+  listLabResultsByOrder,
+  listOpenLabOrders,
+  updateLabOrderStatus,
+  type CreateLabOrderInput,
+  type CreateLabResultInput,
+} from './repositories/lab-orders.repository.js';
+import {
+  createVisitTemplate,
+  deactivateVisitTemplate,
+  listVisitTemplates,
+  updateVisitTemplate,
+  type CreateVisitTemplateInput,
+  type UpdateVisitTemplateInput,
+} from './repositories/visit-templates.repository.js';
+import {
+  createClinicalAlert,
+  deactivateClinicalAlert,
+  dismissClinicalAlert,
+  listActiveClinicalAlerts,
+  type CreateClinicalAlertInput,
+} from './repositories/clinical-alerts.repository.js';
+import type { LabOrderStatus } from '../src/database/types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -85,6 +123,20 @@ function assertSignedIn() {
   if (!currentSessionUser) {
     throw new Error('Please sign in before accessing clinic data.');
   }
+}
+
+function assertUserHasRole(allowedRoles: readonly AuthUser['role'][]): AuthUser {
+  const user = currentSessionUser;
+
+  if (!user) {
+    throw new Error('Please sign in before accessing clinic data.');
+  }
+
+  if (!allowedRoles.includes(user.role)) {
+    throw new Error('You do not have permission to perform this action.');
+  }
+
+  return user;
 }
 
 function registerDatabaseHandlers() {
@@ -283,6 +335,135 @@ function registerMedicalRecordHandlers() {
   });
 }
 
+function assertPrescriptionStatus(status: unknown): asserts status is PrescriptionStatus {
+  if (status !== 'active' && status !== 'fulfilled' && status !== 'cancelled') {
+    throw new Error('A valid prescription status is required.');
+  }
+}
+
+function registerPrescriptionHandlers() {
+  ipcMain.handle('prescriptions:list-by-patient', async (_event, patientId: number) => {
+    assertUserHasRole(['doctor', 'nurse', 'pharmacy', 'admin']);
+    return listPrescriptionsByPatient(await getDatabase(), patientId);
+  });
+
+  ipcMain.handle('prescriptions:list-by-medical-record', async (_event, medicalRecordId: number) => {
+    assertUserHasRole(['doctor', 'nurse', 'pharmacy', 'admin']);
+    return listPrescriptionsByMedicalRecord(await getDatabase(), medicalRecordId);
+  });
+
+  ipcMain.handle('prescriptions:create', async (_event, input: Omit<CreatePrescriptionInput, 'prescribed_by_user_id'>) => {
+    const user = assertUserHasRole(['doctor', 'admin']);
+    return createPrescription(await getDatabase(), { ...input, prescribed_by_user_id: user.id });
+  });
+
+  ipcMain.handle('prescriptions:update-status', async (_event, prescriptionId: number, status: PrescriptionStatus) => {
+    assertUserHasRole(['doctor', 'admin']);
+    assertPrescriptionStatus(status);
+    return updatePrescriptionStatus(await getDatabase(), prescriptionId, status);
+  });
+
+  ipcMain.handle('prescriptions:update', async (_event, prescriptionId: number, input: UpdatePrescriptionInput) => {
+    assertUserHasRole(['doctor', 'admin']);
+    return updatePrescription(await getDatabase(), prescriptionId, input);
+  });
+
+  ipcMain.handle('prescriptions:delete', async (_event, prescriptionId: number) => {
+    assertUserHasRole(['doctor', 'admin']);
+    await deletePrescription(await getDatabase(), prescriptionId);
+    return true;
+  });
+}
+
+function assertLabOrderStatus(status: unknown): asserts status is LabOrderStatus {
+  if (status !== 'pending' && status !== 'resulted' && status !== 'cancelled') {
+    throw new Error('A valid lab order status is required.');
+  }
+}
+
+function registerLabHandlers() {
+  ipcMain.handle('labs:list-by-patient', async (_event, patientId: number) => {
+    assertUserHasRole(['doctor', 'nurse', 'lab', 'admin']);
+    return listLabOrdersByPatient(await getDatabase(), patientId);
+  });
+
+  ipcMain.handle('labs:list-open-orders', async () => {
+    assertUserHasRole(['doctor', 'nurse', 'lab', 'admin']);
+    return listOpenLabOrders(await getDatabase());
+  });
+
+  ipcMain.handle('labs:list-results-by-order', async (_event, orderId: number) => {
+    assertUserHasRole(['doctor', 'nurse', 'lab', 'admin']);
+    return listLabResultsByOrder(await getDatabase(), orderId);
+  });
+
+  ipcMain.handle('labs:create-order', async (_event, input: Omit<CreateLabOrderInput, 'ordered_by_user_id'>) => {
+    const user = assertUserHasRole(['doctor', 'nurse', 'admin']);
+    return createLabOrder(await getDatabase(), { ...input, ordered_by_user_id: user.id });
+  });
+
+  ipcMain.handle('labs:create-result', async (_event, orderId: number, input: Omit<CreateLabResultInput, 'recorded_by_user_id'>) => {
+    const user = assertUserHasRole(['lab', 'admin']);
+    return createLabResult(await getDatabase(), orderId, { ...input, recorded_by_user_id: user.id });
+  });
+
+  ipcMain.handle('labs:update-status', async (_event, orderId: number, status: LabOrderStatus) => {
+    assertUserHasRole(['doctor', 'nurse', 'admin']);
+    assertLabOrderStatus(status);
+    return updateLabOrderStatus(await getDatabase(), orderId, status);
+  });
+
+  ipcMain.handle('labs:delete-order', async (_event, orderId: number) => {
+    assertUserHasRole(['doctor', 'admin']);
+    await deleteLabOrder(await getDatabase(), orderId);
+    return true;
+  });
+}
+
+function registerVisitTemplateHandlers() {
+  ipcMain.handle('visit-templates:list', async (_event, includeInactive?: boolean) => {
+    assertUserHasRole(['doctor', 'nurse', 'admin']);
+    return listVisitTemplates(await getDatabase(), currentSessionUser?.role === 'admin' && includeInactive === true);
+  });
+
+  ipcMain.handle('visit-templates:create', async (_event, input: Omit<CreateVisitTemplateInput, 'created_by_user_id'>) => {
+    const user = assertUserHasRole(['admin']);
+    return createVisitTemplate(await getDatabase(), { ...input, created_by_user_id: user.id });
+  });
+
+  ipcMain.handle('visit-templates:update', async (_event, templateId: number, input: UpdateVisitTemplateInput) => {
+    assertUserHasRole(['admin']);
+    return updateVisitTemplate(await getDatabase(), templateId, input);
+  });
+
+  ipcMain.handle('visit-templates:deactivate', async (_event, templateId: number) => {
+    assertUserHasRole(['admin']);
+    return deactivateVisitTemplate(await getDatabase(), templateId);
+  });
+}
+
+function registerClinicalAlertHandlers() {
+  ipcMain.handle('clinical-alerts:list-active', async (_event, patientId: number) => {
+    assertUserHasRole(['doctor', 'nurse', 'lab', 'pharmacy', 'admin']);
+    return listActiveClinicalAlerts(await getDatabase(), patientId);
+  });
+
+  ipcMain.handle('clinical-alerts:create', async (_event, input: Omit<CreateClinicalAlertInput, 'created_by_user_id'>) => {
+    const user = assertUserHasRole(['doctor', 'nurse', 'admin']);
+    return createClinicalAlert(await getDatabase(), { ...input, created_by_user_id: user.id });
+  });
+
+  ipcMain.handle('clinical-alerts:dismiss', async (_event, alertId: number) => {
+    assertUserHasRole(['doctor', 'nurse', 'admin']);
+    return dismissClinicalAlert(await getDatabase(), alertId);
+  });
+
+  ipcMain.handle('clinical-alerts:deactivate', async (_event, alertId: number) => {
+    assertUserHasRole(['doctor', 'admin']);
+    return deactivateClinicalAlert(await getDatabase(), alertId);
+  });
+}
+
 function getPatientFilesDirectory(medicalRecordId: number) {
   return path.join(app.getPath('userData'), 'patient-files', String(medicalRecordId));
 }
@@ -468,6 +649,10 @@ app.whenReady().then(() => {
   registerInventoryHandlers();
   registerFinanceHandlers();
   registerMedicalRecordHandlers();
+  registerPrescriptionHandlers();
+  registerLabHandlers();
+  registerVisitTemplateHandlers();
+  registerClinicalAlertHandlers();
   createWindow();
   // Boot Postgres in parallel; IPC handlers await the shared startup promise as needed.
   void startDatabase();

@@ -12,6 +12,18 @@ import type {
   MedicalRecord,
   MedicalRecordAttachment,
   Patient,
+  ClinicalAlert,
+  ClinicalAlertSeverity,
+  ClinicalAlertType,
+  LabOrder,
+  LabOrderStatus,
+  LabOrderUrgency,
+  LabResult,
+  LabResultInterpretation,
+  Prescription,
+  PrescriptionStatus,
+  VisitTemplate,
+  VisitTemplateData,
 } from './modules/clinic-data';
 
 type AuthUser = {
@@ -82,6 +94,50 @@ type AttachmentInput = {
   file_size_bytes: number;
 };
 
+type PrescriptionInput = {
+  medical_record_id: number;
+  patient_id: number;
+  medicine_name: string;
+  dosage: string;
+  frequency: string;
+  duration_days: number | null;
+  notes: string;
+};
+
+type LabOrderInput = {
+  medical_record_id: number;
+  patient_id: number;
+  test_name: string;
+  urgency: LabOrderUrgency;
+  clinical_indication: string;
+};
+
+type LabResultInput = {
+  patient_id: number;
+  test_name: string;
+  result_value: string;
+  reference_range: string;
+  interpretation: LabResultInterpretation;
+  notes: string;
+};
+
+type VisitTemplateInput = {
+  name: string;
+  visit_type: string;
+  description: string;
+  template_data: VisitTemplateData;
+};
+
+type ClinicalAlertInput = {
+  patient_id: number;
+  related_medical_record_id: number | null;
+  alert_type: ClinicalAlertType;
+  title: string;
+  description: string;
+  severity: ClinicalAlertSeverity;
+  dismissible: boolean;
+};
+
 declare global {
   interface Window {
     electronAPI: {
@@ -138,6 +194,35 @@ declare global {
         delete(recordId: number): Promise<boolean>;
         addAttachment(input: AttachmentInput): Promise<MedicalRecordAttachment>;
         deleteAttachment(attachmentId: number): Promise<boolean>;
+      };
+      prescriptions: {
+        listByPatient(patientId: number): Promise<Prescription[]>;
+        listByMedicalRecord(medicalRecordId: number): Promise<Prescription[]>;
+        create(input: PrescriptionInput): Promise<Prescription>;
+        update(prescriptionId: number, input: Omit<PrescriptionInput, 'medical_record_id' | 'patient_id'>): Promise<Prescription>;
+        updateStatus(prescriptionId: number, status: PrescriptionStatus): Promise<Prescription>;
+        delete(prescriptionId: number): Promise<boolean>;
+      };
+      labs: {
+        listByPatient(patientId: number): Promise<LabOrder[]>;
+        listOpenOrders(): Promise<LabOrder[]>;
+        listResultsByOrder(orderId: number): Promise<LabResult[]>;
+        createOrder(input: LabOrderInput): Promise<LabOrder>;
+        createResult(orderId: number, input: LabResultInput): Promise<LabResult>;
+        updateStatus(orderId: number, status: LabOrderStatus): Promise<LabOrder>;
+        deleteOrder(orderId: number): Promise<boolean>;
+      };
+      visitTemplates: {
+        list(includeInactive?: boolean): Promise<VisitTemplate[]>;
+        create(input: VisitTemplateInput): Promise<VisitTemplate>;
+        update(templateId: number, input: VisitTemplateInput): Promise<VisitTemplate>;
+        deactivate(templateId: number): Promise<VisitTemplate>;
+      };
+      clinicalAlerts: {
+        listActive(patientId: number): Promise<ClinicalAlert[]>;
+        create(input: ClinicalAlertInput): Promise<ClinicalAlert>;
+        dismiss(alertId: number): Promise<ClinicalAlert>;
+        deactivate(alertId: number): Promise<ClinicalAlert>;
       };
       patientFiles: {
         add(medicalRecordId: number): Promise<PatientFileUpload[]>;

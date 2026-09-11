@@ -91,3 +91,88 @@ export type MedicalRecordAttachment = {
   file_size_bytes: string;
   created_at: string;
 };
+
+export type PrescriptionStatus = 'active' | 'fulfilled' | 'cancelled';
+
+export type Prescription = {
+  id: number;
+  medical_record_id: number;
+  patient_id: number;
+  prescribed_by_user_id: number;
+  prescribed_by_name: string;
+  medicine_name: string;
+  dosage: string;
+  frequency: string;
+  duration_days: number | null;
+  notes: string;
+  status: PrescriptionStatus;
+  prescribed_on: string;
+  created_at: string;
+};
+
+export type LabOrderUrgency = 'routine' | 'urgent';
+export type LabOrderStatus = 'pending' | 'resulted' | 'cancelled';
+export type LabResultInterpretation = '' | 'normal' | 'low' | 'high' | 'critical';
+
+export type LabOrder = {
+  id: number;
+  medical_record_id: number;
+  patient_id: number;
+  patient_name: string;
+  ordered_by_user_id: number;
+  ordered_by_name: string;
+  test_name: string;
+  urgency: LabOrderUrgency;
+  clinical_indication: string;
+  result_status: LabOrderStatus;
+  ordered_on: string;
+  created_at: string;
+};
+
+export type LabResult = {
+  id: number;
+  lab_order_id: number;
+  patient_id: number;
+  test_name: string;
+  result_value: string;
+  reference_range: string;
+  interpretation: LabResultInterpretation;
+  notes: string;
+  recorded_by_user_id: number;
+  recorded_by_name: string;
+  recorded_on: string;
+  created_at: string;
+};
+
+export type VisitTemplateSection = { key: string; label: string; type: 'text' | 'vitals' };
+export type VisitTemplateData = { sections: VisitTemplateSection[] };
+
+export type VisitTemplate = {
+  id: number;
+  name: string;
+  visit_type: string;
+  description: string;
+  created_by_user_id: number;
+  template_data: VisitTemplateData;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClinicalAlertType = 'allergy' | 'contraindication' | 'critical_value' | 'follow_up_due';
+export type ClinicalAlertSeverity = 'info' | 'warning' | 'critical';
+
+export type ClinicalAlert = {
+  id: number;
+  patient_id: number;
+  related_medical_record_id: number | null;
+  alert_type: ClinicalAlertType;
+  title: string;
+  description: string;
+  severity: ClinicalAlertSeverity;
+  dismissible: boolean;
+  is_active: boolean;
+  created_by_user_id: number;
+  created_at: string;
+  dismissed_at: string | null;
+};

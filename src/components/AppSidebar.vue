@@ -27,6 +27,16 @@ function getItems() {
       to: '/appointments'
     },
     {
+      label: 'مساحة العمل السريري',
+      icon: 'i-lucide-stethoscope',
+      to: '/clinical-workspace'
+    },
+    {
+      label: 'الوصفات الطبية',
+      icon: 'i-lucide-pill',
+      to: '/prescriptions'
+    },
+    {
       label: t('sidebar.finance'),
       icon: 'i-lucide-wallet-cards',
       to: '/finance'

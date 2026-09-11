@@ -73,6 +73,13 @@ export type InventoryMovementsTable = {
 };
 
 export type FinancialTransactionType = 'income' | 'expense';
+export type PrescriptionStatus = 'active' | 'fulfilled' | 'cancelled';
+export type LabOrderUrgency = 'routine' | 'urgent';
+export type LabOrderStatus = 'pending' | 'resulted' | 'cancelled';
+export type LabResultInterpretation = '' | 'normal' | 'low' | 'high' | 'critical';
+export type ClinicalAlertType = 'allergy' | 'contraindication' | 'critical_value' | 'follow_up_due';
+export type ClinicalAlertSeverity = 'info' | 'warning' | 'critical';
+export type VisitTemplateData = { sections: Array<{ key: string; label: string; type: 'text' | 'vitals' }> };
 
 export type FinancialTransactionsTable = {
   id: Generated<number>;
@@ -110,6 +117,82 @@ export type PatientRecordAttachmentsTable = {
   created_at: Timestamp;
 };
 
+export type PrescriptionsTable = {
+  id: Generated<number>;
+  medical_record_id: number;
+  patient_id: number;
+  prescribed_by_user_id: number;
+  medicine_name: string;
+  dosage: string;
+  frequency: string;
+  duration_days: number | null;
+  notes: ColumnType<string, string | undefined, string>;
+  status: ColumnType<PrescriptionStatus, PrescriptionStatus | undefined, PrescriptionStatus>;
+  prescribed_on: Timestamp;
+  created_at: Timestamp;
+};
+
+export type LabOrdersTable = {
+  id: Generated<number>;
+  medical_record_id: number;
+  patient_id: number;
+  ordered_by_user_id: number;
+  test_name: string;
+  urgency: ColumnType<LabOrderUrgency, LabOrderUrgency | undefined, LabOrderUrgency>;
+  clinical_indication: ColumnType<string, string | undefined, string>;
+  result_status: ColumnType<LabOrderStatus, LabOrderStatus | undefined, LabOrderStatus>;
+  ordered_on: Timestamp;
+  created_at: Timestamp;
+};
+
+export type LabResultsTable = {
+  id: Generated<number>;
+  lab_order_id: number;
+  patient_id: number;
+  test_name: string;
+  result_value: string;
+  reference_range: ColumnType<string, string | undefined, string>;
+  interpretation: ColumnType<LabResultInterpretation, LabResultInterpretation | undefined, LabResultInterpretation>;
+  notes: ColumnType<string, string | undefined, string>;
+  recorded_by_user_id: number;
+  recorded_on: Timestamp;
+  created_at: Timestamp;
+};
+
+export type VisitTemplatesTable = {
+  id: Generated<number>;
+  name: string;
+  visit_type: string;
+  description: ColumnType<string, string | undefined, string>;
+  created_by_user_id: number;
+  template_data: ColumnType<VisitTemplateData, VisitTemplateData, VisitTemplateData>;
+  is_active: ColumnType<boolean, boolean | undefined, boolean>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+};
+
+export type VisitTemplateUsesTable = {
+  id: Generated<number>;
+  medical_record_id: number;
+  template_id: number;
+  created_at: Timestamp;
+};
+
+export type PatientClinicalAlertsTable = {
+  id: Generated<number>;
+  patient_id: number;
+  related_medical_record_id: number | null;
+  alert_type: ClinicalAlertType;
+  title: string;
+  description: ColumnType<string, string | undefined, string>;
+  severity: ColumnType<ClinicalAlertSeverity, ClinicalAlertSeverity | undefined, ClinicalAlertSeverity>;
+  dismissible: ColumnType<boolean, boolean | undefined, boolean>;
+  is_active: ColumnType<boolean, boolean | undefined, boolean>;
+  created_by_user_id: number;
+  created_at: Timestamp;
+  dismissed_at: Timestamp | null;
+};
+
 export type Database = {
   users: UsersTable;
   patients: PatientsTable;
@@ -121,6 +204,12 @@ export type Database = {
   financial_transactions: FinancialTransactionsTable;
   patient_medical_records: PatientMedicalRecordsTable;
   patient_record_attachments: PatientRecordAttachmentsTable;
+  prescriptions: PrescriptionsTable;
+  lab_orders: LabOrdersTable;
+  lab_results: LabResultsTable;
+  visit_templates: VisitTemplatesTable;
+  visit_template_uses: VisitTemplateUsesTable;
+  patient_clinical_alerts: PatientClinicalAlertsTable;
 };
 
 export type User = Selectable<UsersTable>;
@@ -155,3 +244,20 @@ export type NewPatientMedicalRecord = Insertable<PatientMedicalRecordsTable>;
 
 export type PatientRecordAttachment = Selectable<PatientRecordAttachmentsTable>;
 export type NewPatientRecordAttachment = Insertable<PatientRecordAttachmentsTable>;
+
+export type Prescription = Selectable<PrescriptionsTable>;
+export type NewPrescription = Insertable<PrescriptionsTable>;
+export type PrescriptionUpdate = Updateable<PrescriptionsTable>;
+
+export type LabOrder = Selectable<LabOrdersTable>;
+export type NewLabOrder = Insertable<LabOrdersTable>;
+export type LabOrderUpdate = Updateable<LabOrdersTable>;
+export type LabResult = Selectable<LabResultsTable>;
+export type NewLabResult = Insertable<LabResultsTable>;
+export type VisitTemplate = Selectable<VisitTemplatesTable>;
+export type NewVisitTemplate = Insertable<VisitTemplatesTable>;
+export type VisitTemplateUpdate = Updateable<VisitTemplatesTable>;
+export type VisitTemplateUse = Selectable<VisitTemplateUsesTable>;
+export type ClinicalAlert = Selectable<PatientClinicalAlertsTable>;
+export type NewClinicalAlert = Insertable<PatientClinicalAlertsTable>;
+export type ClinicalAlertUpdate = Updateable<PatientClinicalAlertsTable>;
