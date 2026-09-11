@@ -16,6 +16,7 @@ const BIN_PERMISSIONS = 0o555;
 type PostgresInstance = {
   process: ChildProcessWithoutNullStreams | null;
   ownsProcess: boolean;
+  pid?: number;
 };
 
 let postgres: PostgresInstance | null = null;
@@ -189,7 +190,13 @@ async function startPostgresProcess() {
   try {
     await existingClient.connect();
     await existingClient.end();
-    return { process: null, ownsProcess: false } satisfies PostgresInstance;
+    const postmasterPid = await fs.readFile(path.join(getDatabaseDir(), 'postmaster.pid'), 'utf8')
+      .then((contents) => Number.parseInt(contents.split(/\r?\n/, 1)[0], 10))
+      .catch(() => Number.NaN);
+
+    return Number.isInteger(postmasterPid) && postmasterPid > 0
+      ? { process: null, ownsProcess: true, pid: postmasterPid } satisfies PostgresInstance
+      : { process: null, ownsProcess: false } satisfies PostgresInstance;
   } catch {
     await existingClient.end().catch(() => undefined);
   }
@@ -346,16 +353,36 @@ export async function getDatabase() {
 }
 
 export async function stopDatabase() {
+  await startup?.catch(() => undefined);
   await db?.destroy();
   db = null;
 
-  if (!postgres || !postgres.ownsProcess || !postgres.process) {
+  if (!postgres || !postgres.ownsProcess) {
     postgres = null;
     startup = null;
     return;
   }
 
   const instance = postgres;
+
+  if (!instance.process && instance.pid) {
+    process.kill(instance.pid, 'SIGINT');
+    await new Promise<void>((resolve) => {
+      const waitForExit = () => {
+        try {
+          process.kill(instance.pid!, 0);
+          setTimeout(waitForExit, 50);
+        } catch {
+          resolve();
+        }
+      };
+
+      waitForExit();
+    });
+    postgres = null;
+    startup = null;
+    return;
+  }
 
   await new Promise<void>((resolve) => {
     instance.process?.once('exit', () => resolve());
