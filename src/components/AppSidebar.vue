@@ -22,7 +22,7 @@ function getItems() {
       to: '/patients'
     },
     {
-      label: t('sidebar.appointments'),
+      label: 'الزيارات الطبية',
       icon: 'i-lucide-calendar-days',
       to: '/appointments'
     },

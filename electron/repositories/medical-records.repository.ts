@@ -3,6 +3,11 @@ import type { Database, PatientMedicalRecord, PatientRecordAttachment } from '..
 
 export type MedicalRecordWithAuthor = PatientMedicalRecord & { recorded_by_name: string | null; doctor_name: string | null };
 
+export type MedicalRecordWithPatientAndAuthor = MedicalRecordWithAuthor & {
+  patient_name: string;
+  patient_phone: string;
+};
+
 export type CreateMedicalRecordInput = {
   patient_id: number;
   doctor_id: number | null;
@@ -49,6 +54,32 @@ export async function listMedicalRecordsByPatient(
     .select('users.username as recorded_by_name')
     .select('doctors.display_name as doctor_name')
     .where('records.patient_id', '=', patientId)
+    .orderBy('records.visit_date', 'desc')
+    .execute();
+}
+
+export async function listMedicalRecordsForRange(
+  db: Kysely<Database>,
+  from: Date | string,
+  to: Date | string,
+): Promise<MedicalRecordWithPatientAndAuthor[]> {
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+
+  return db
+    .selectFrom('patient_medical_records as records')
+    .innerJoin('patients', 'patients.id', 'records.patient_id')
+    .leftJoin('users', 'users.id', 'records.recorded_by_user_id')
+    .leftJoin('doctors', 'doctors.id', 'records.doctor_id')
+    .selectAll('records')
+    .select([
+      'patients.full_name as patient_name',
+      'patients.phone as patient_phone',
+      'users.username as recorded_by_name',
+      'doctors.display_name as doctor_name',
+    ])
+    .where('records.visit_date', '>=', fromDate)
+    .where('records.visit_date', '<', toDate)
     .orderBy('records.visit_date', 'desc')
     .execute();
 }

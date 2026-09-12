@@ -59,6 +59,7 @@ import {
   findMedicalRecordById,
   listAttachmentsForRecords,
   listMedicalRecordsByPatient,
+  listMedicalRecordsForRange,
   type CreateAttachmentInput,
   type CreateMedicalRecordInput,
   type UpdateMedicalRecordInput,
@@ -306,6 +307,11 @@ function registerMedicalRecordHandlers() {
     const records = await listMedicalRecordsByPatient(db, patientId);
     const attachments = await listAttachmentsForRecords(db, records.map((record) => record.id));
     return { records, attachments };
+  });
+
+  ipcMain.handle('medical-records:list-for-range', async (_event, from: string, to: string) => {
+    assertSignedIn();
+    return listMedicalRecordsForRange(await getDatabase(), from, to);
   });
 
   ipcMain.handle('medical-records:create', async (_event, input: CreateMedicalRecordInput) => {

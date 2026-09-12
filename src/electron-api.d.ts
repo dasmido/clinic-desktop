@@ -190,6 +190,7 @@ declare global {
       };
       medicalRecords: {
         listByPatient(patientId: number): Promise<{ records: MedicalRecord[]; attachments: MedicalRecordAttachment[] }>;
+        listForRange(from: string, to: string): Promise<(MedicalRecord & { patient_name: string; patient_phone: string })[]>;
         create(input: MedicalRecordInput): Promise<MedicalRecord>;
         update(recordId: number, input: Omit<MedicalRecordInput, 'patient_id' | 'recorded_by_user_id'>): Promise<MedicalRecord>;
         delete(recordId: number): Promise<boolean>;

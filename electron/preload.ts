@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 	},
 	medicalRecords: {
 		listByPatient: (patientId: number) => ipcRenderer.invoke('medical-records:list-by-patient', patientId),
+		listForRange: (from: string, to: string) => ipcRenderer.invoke('medical-records:list-for-range', from, to),
 		create: (input: unknown) => ipcRenderer.invoke('medical-records:create', input),
 		update: (recordId: number, input: unknown) => ipcRenderer.invoke('medical-records:update', recordId, input),
 		delete: (recordId: number) => ipcRenderer.invoke('medical-records:delete', recordId),
