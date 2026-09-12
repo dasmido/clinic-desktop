@@ -183,7 +183,8 @@ async function loadSchedule() {
     const from = new Date(`${selectedDate.value}T00:00:00`).toISOString()
     const toDateObj = new Date(`${selectedDate.value}T00:00:00`)
     toDateObj.setDate(toDateObj.getDate() + 1)
-    visits.value = await window.electronAPI.medicalRecords.listForRange(from, toDateObj.toISOString())
+    const list = await window.electronAPI.medicalRecords.listForRange(from, toDateObj.toISOString())
+    visits.value = list || []
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر تحميل سجل الزيارات الطبية.'
   } finally {
@@ -192,11 +193,21 @@ async function loadSchedule() {
 }
 
 async function loadPatients() {
-  patients.value = await window.electronAPI.patients.list()
+  try {
+    const list = await window.electronAPI.patients.list()
+    patients.value = list || []
+  } catch (err) {
+    console.error('Failed to load patients:', err)
+  }
 }
 
 async function loadDoctors() {
-  doctors.value = await window.electronAPI.doctors.list()
+  try {
+    const list = await window.electronAPI.doctors.list()
+    doctors.value = list || []
+  } catch (err) {
+    console.error('Failed to load doctors:', err)
+  }
 }
 
 async function loadCalendarMonth() {
@@ -204,10 +215,11 @@ async function loadCalendarMonth() {
   try {
     const from = new Date(calendarMonth.value.getFullYear(), calendarMonth.value.getMonth(), 1)
     const to = new Date(calendarMonth.value.getFullYear(), calendarMonth.value.getMonth() + 1, 1)
-    calendarVisits.value = await window.electronAPI.medicalRecords.listForRange(
+    const list = await window.electronAPI.medicalRecords.listForRange(
       from.toISOString(),
       to.toISOString()
     )
+    calendarVisits.value = list || []
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر تحميل بيانات التقويم.'
   } finally {
@@ -246,11 +258,11 @@ async function saveVisit() {
     const recordInput = {
       doctor_id: form.value.doctorId ? Number(form.value.doctorId) : null,
       visit_date: new Date(form.value.visitDate).toISOString(),
-      chief_complaint: form.value.chiefComplaint.trim(),
-      diagnosis: form.value.diagnosis.trim(),
-      treatment_plan: form.value.treatmentPlan.trim(),
-      clinical_notes: form.value.clinicalNotes.trim(),
-      blood_pressure: form.value.bloodPressure.trim(),
+      chief_complaint: (form.value.chiefComplaint || '').trim(),
+      diagnosis: (form.value.diagnosis || '').trim(),
+      treatment_plan: (form.value.treatmentPlan || '').trim(),
+      clinical_notes: (form.value.clinicalNotes || '').trim(),
+      blood_pressure: (form.value.bloodPressure || '').trim(),
       temperature_celsius: form.value.temperature ? Number(form.value.temperature) : null,
       weight_kg: form.value.weight ? Number(form.value.weight) : null,
     }

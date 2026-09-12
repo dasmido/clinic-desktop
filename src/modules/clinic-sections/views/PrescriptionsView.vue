@@ -15,6 +15,7 @@ const recordId = ref('')
 const onlyWithPrescriptions = ref(false)
 const editingId = ref<number | null>(null)
 const isModalOpen = ref(false)
+const isPrintPreviewOpen = ref(false)
 const isLoading = ref(false)
 const errorMessage = ref('')
 
@@ -197,15 +198,20 @@ function resetForm() {
 }
 
 const isFormValid = computed(() => {
-  if (!form.value.patientId || !form.value.recordId) return false
+  if (!form.value?.patientId || !form.value?.recordId || !form.value?.medicines) return false
   return form.value.medicines.some(
-    (m) => m.medicineName.trim() && m.dosage.trim() && m.frequency.trim()
+    (m) =>
+      m &&
+      (m.medicineName || '').trim() &&
+      (m.dosage || '').trim() &&
+      (m.frequency || '').trim()
   )
 })
 
 async function fetchAllPrescriptions() {
   try {
-    allPrescriptions.value = await window.electronAPI.prescriptions.listAll()
+    const list = await window.electronAPI.prescriptions.listAll()
+    allPrescriptions.value = list || []
   } catch (err) {
     console.error('Failed to load all prescriptions:', err)
   }
@@ -221,15 +227,15 @@ async function loadPatientData() {
     window.electronAPI.medicalRecords.listByPatient(id),
     window.electronAPI.prescriptions.listByPatient(id),
   ])
-  records.value = medicalData.records
-  prescriptions.value = prescriptionRows
+  records.value = medicalData?.records || []
+  prescriptions.value = prescriptionRows || []
 }
 
 async function loadModalRecords(targetPatientId: number) {
   modalRecords.value = []
   if (!targetPatientId) return
   const medicalData = await window.electronAPI.medicalRecords.listByPatient(targetPatientId)
-  modalRecords.value = medicalData.records
+  modalRecords.value = medicalData?.records || []
 }
 
 async function refresh() {
@@ -278,14 +284,14 @@ async function openEdit(prescription: Prescription) {
     recordId: String(prescription.medical_record_id),
     medicines: [
       {
-        medicineName: prescription.medicine_name,
-        dosage: prescription.dosage,
-        frequency: prescription.frequency,
+        medicineName: prescription.medicine_name || '',
+        dosage: prescription.dosage || '',
+        frequency: prescription.frequency || '',
         durationDays: prescription.duration_days ? String(prescription.duration_days) : '',
-        notes: prescription.notes,
+        notes: prescription.notes || '',
       },
     ],
-    status: prescription.status,
+    status: prescription.status || 'active',
   }
   await loadModalRecords(prescription.patient_id)
   isModalOpen.value = true
@@ -309,8 +315,12 @@ watch(
 async function savePrescription() {
   const pid = Number(form.value.patientId)
   const rid = Number(form.value.recordId)
-  const validMedicines = form.value.medicines.filter(
-    (m) => m.medicineName.trim() && m.dosage.trim() && m.frequency.trim()
+  const validMedicines = (form.value.medicines || []).filter(
+    (m) =>
+      m &&
+      (m.medicineName || '').trim() &&
+      (m.dosage || '').trim() &&
+      (m.frequency || '').trim()
   )
 
   if (!pid || !rid || validMedicines.length === 0) {
@@ -322,11 +332,11 @@ async function savePrescription() {
     if (editingId.value) {
       const med = validMedicines[0]
       await window.electronAPI.prescriptions.update(editingId.value, {
-        medicine_name: med.medicineName.trim(),
-        dosage: med.dosage.trim(),
-        frequency: med.frequency.trim(),
+        medicine_name: (med.medicineName || '').trim(),
+        dosage: (med.dosage || '').trim(),
+        frequency: (med.frequency || '').trim(),
         duration_days: med.durationDays ? Number(med.durationDays) : null,
-        notes: med.notes.trim(),
+        notes: (med.notes || '').trim(),
         status: form.value.status,
       })
     } else {
@@ -335,11 +345,11 @@ async function savePrescription() {
           window.electronAPI.prescriptions.create({
             medical_record_id: rid,
             patient_id: pid,
-            medicine_name: med.medicineName.trim(),
-            dosage: med.dosage.trim(),
-            frequency: med.frequency.trim(),
+            medicine_name: (med.medicineName || '').trim(),
+            dosage: (med.dosage || '').trim(),
+            frequency: (med.frequency || '').trim(),
             duration_days: med.durationDays ? Number(med.durationDays) : null,
-            notes: med.notes.trim(),
+            notes: (med.notes || '').trim(),
             status: form.value.status,
           })
         )
@@ -395,12 +405,14 @@ async function printVisitPrescriptions(visitRecordId: number, singlePrescription
       prescriptions: pList,
     }
 
-    setTimeout(() => {
-      window.print()
-    }, 100)
+    isPrintPreviewOpen.value = true
   } catch (err) {
-    console.error('Failed to print prescription sheet:', err)
+    console.error('Failed to prepare prescription sheet:', err)
   }
+}
+
+function triggerPrint() {
+  window.print()
 }
 
 watch(patientId, refresh)
@@ -696,6 +708,122 @@ onMounted(async () => {
             />
           </div>
         </form>
+      </template>
+    </UModal>
+
+    <!-- Print Preview Modal (معاينة الوصفة الطبية قبل الطباعة) -->
+    <UModal v-model:open="isPrintPreviewOpen" title="معاينة الوصفة الطبية" :ui="{ content: 'sm:max-w-3xl' }">
+      <template #body>
+        <div v-if="printSheetData" class="space-y-4">
+          <!-- Onscreen Prescription Paper Preview -->
+          <div class="border border-teal-600/30 bg-white text-slate-900 p-6 rounded-lg shadow-md space-y-4 font-sans text-right" dir="rtl">
+            <!-- Header Section -->
+            <div class="flex justify-between items-center border-b-2 border-teal-700 pb-4">
+              <div class="text-right">
+                <p class="text-[11px] font-semibold text-slate-500">جمهورية العراق - وزارة الصحة</p>
+                <p class="text-[10px] font-bold text-teal-700">نقابة أطباء العراق</p>
+                <h2 class="text-lg font-extrabold text-teal-800">د. {{ printSheetData.doctorName || currentUser?.username || 'المعالج' }}</h2>
+                <p class="text-xs font-bold text-slate-700">أخصائي الطب العام والباطنية</p>
+                <p class="text-[10px] text-slate-500">زميل المجلس العراقي للتخصصات الطبية (بورد عراقي)</p>
+              </div>
+
+              <div class="flex flex-col items-center justify-center border-2 border-teal-700 rounded-full size-14 bg-teal-50 shrink-0">
+                <span class="text-xl font-black text-teal-800 leading-none">℞</span>
+                <span class="text-[8px] font-bold text-teal-700">وصفة طبية</span>
+              </div>
+
+              <div class="text-left font-sans" dir="ltr">
+                <p class="text-[11px] font-semibold text-slate-500">Republic of Iraq - Ministry of Health</p>
+                <p class="text-[10px] font-bold text-teal-700">Iraqi Medical Association</p>
+                <h2 class="text-lg font-extrabold text-teal-800">Dr. {{ printSheetData.doctorName || currentUser?.username || 'Physician' }}</h2>
+                <p class="text-xs font-bold text-slate-700">Consultant Physician & Specialist</p>
+                <p class="text-[10px] text-slate-500">M.B.Ch.B. - F.I.C.M.S. (Iraqi Board)</p>
+              </div>
+            </div>
+
+            <!-- Patient Info Bar -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded border border-slate-200 text-xs">
+              <div>
+                <span class="text-slate-500 font-medium">اسم المريض: </span>
+                <span class="font-bold text-slate-900">{{ printSheetData.patient?.full_name || 'غير محدد' }}</span>
+              </div>
+              <div>
+                <span class="text-slate-500 font-medium">العمر: </span>
+                <span class="font-bold text-slate-900">{{ calculateAge(printSheetData.patient?.date_of_birth) }}</span>
+              </div>
+              <div>
+                <span class="text-slate-500 font-medium">التاريخ: </span>
+                <span class="font-bold text-slate-900">{{ formatDate(printSheetData.visitDate) }}</span>
+              </div>
+              <div>
+                <span class="text-slate-500 font-medium">الهاتف: </span>
+                <span class="font-bold text-slate-900" dir="ltr">{{ printSheetData.patient?.phone || '-' }}</span>
+              </div>
+            </div>
+
+            <!-- Diagnosis -->
+            <div v-if="printSheetData.diagnosis" class="bg-teal-50/60 border-r-4 border-teal-700 p-2 rounded text-xs">
+              <span class="font-bold text-slate-700">التشخيص الطبي: </span>
+              <span class="text-slate-900">{{ printSheetData.diagnosis }}</span>
+            </div>
+
+            <!-- Medicines List -->
+            <div class="min-h-48 space-y-3 py-2 relative">
+              <div class="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none select-none text-8xl font-serif font-black text-teal-800">
+                ℞
+              </div>
+              <div class="relative z-10 space-y-3">
+                <div
+                  v-for="(item, idx) in printSheetData.prescriptions"
+                  :key="item.id || idx"
+                  class="border-b border-dashed border-slate-200 pb-2.5 space-y-1"
+                >
+                  <div class="flex items-center gap-2">
+                    <span class="font-black text-teal-700 text-sm">{{ idx + 1 }}.</span>
+                    <span class="font-bold text-slate-900 text-base">{{ item.medicine_name }}</span>
+                  </div>
+                  <div class="flex flex-wrap gap-2 text-xs mr-5">
+                    <span class="bg-slate-100 px-2 py-0.5 rounded font-semibold text-slate-800">الجرعة: {{ item.dosage }}</span>
+                    <span class="bg-slate-100 px-2 py-0.5 rounded font-semibold text-slate-800">التكرار: {{ item.frequency }}</span>
+                    <span v-if="item.duration_days" class="bg-slate-100 px-2 py-0.5 rounded font-semibold text-slate-800">المدة: {{ item.duration_days }} أيام</span>
+                  </div>
+                  <p v-if="item.notes" class="text-xs text-slate-600 mr-5">تعليمات: {{ item.notes }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="border-t-2 border-teal-700 pt-3 flex flex-col gap-2 text-xs">
+              <div class="flex justify-between items-end">
+                <div class="text-center w-40">
+                  <p class="font-bold text-slate-700 text-[11px] mb-8">توقيع وختم الطبيب المعالج</p>
+                  <div class="border-b border-dotted border-slate-400"></div>
+                </div>
+                <div class="text-slate-500 text-[10px] space-y-0.5 text-center">
+                  <p>* يرجى الالتزام التام بالجرعات والمواعيد المحددة أعلاه.</p>
+                  <p>* المراجعة مجانية خلال (7) أيام من تاريخ إيقاع الكشف.</p>
+                </div>
+              </div>
+              <div class="text-center font-bold text-teal-800 text-[11px] border-t border-slate-200 pt-1.5 mt-1">
+                بغداد - الحارثية - شارع الأطباء | هاتف العيادة: 0770 000 0000 - 0780 000 0000
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions Bar -->
+          <div class="flex justify-between items-center pt-2">
+            <span class="text-xs text-muted">اضغط على زر الطباعة للتصدير أو الحفظ كـ PDF</span>
+            <div class="flex gap-2">
+              <UButton color="neutral" variant="ghost" label="إغلاق" @click="isPrintPreviewOpen = false" />
+              <UButton
+                icon="i-lucide-printer"
+                color="primary"
+                label="طباعة / حفظ PDF"
+                @click="triggerPrint"
+              />
+            </div>
+          </div>
+        </div>
       </template>
     </UModal>
 

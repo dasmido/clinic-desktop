@@ -628,8 +628,9 @@ function registerAuthHandlers() {
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1000,
-    height: 700,
+    width: 1100,
+    height: 750,
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       nodeIntegration: false,
@@ -637,11 +638,25 @@ function createWindow() {
     },
   });
 
+  win.once('ready-to-show', () => {
+    win?.show();
+  });
+
   win.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
     console.error('[renderer] did-fail-load', errorCode, errorDescription);
+    if (process.env.VITE_DEV_SERVER_URL) {
+      setTimeout(() => {
+        if (win && !win.isDestroyed()) {
+          win.loadURL(process.env.VITE_DEV_SERVER_URL!);
+        }
+      }, 500);
+    }
   });
-  win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    console.log('[renderer console]', level, message, `${sourceId}:${line}`);
+
+  win.webContents.on('console-message', (event, _level, message, line, sourceId) => {
+    const msg = typeof event === 'object' && event && 'message' in event ? (event as any).message : message;
+    const src = typeof event === 'object' && event && 'sourceId' in event ? `${(event as any).sourceId}:${(event as any).lineNumber}` : `${sourceId}:${line}`;
+    console.log('[renderer console]', msg, src);
   });
 
   if (process.env.VITE_DEV_SERVER_URL) {
