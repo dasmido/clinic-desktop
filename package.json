@@ -1,7 +1,7 @@
 {
   "name": "clinic-desktop",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -12,6 +12,7 @@
     "build:renderer": "vue-tsc -b && vite build",
     "build:electron": "vue-tsc -b && vite build --mode electron",
     "clean:release": "node -e \"require('node:fs').rmSync('release', { recursive: true, force: true })\"",
+    "clean:win-db": "cmd /c \"(if exist \"%APPDATA%\\ClinicDesktop\\postgres\" rmdir /s /q \"%APPDATA%\\ClinicDesktop\\postgres\") & (if exist \"%APPDATA%\\clinic-desktop\\postgres\" rmdir /s /q \"%APPDATA%\\clinic-desktop\\postgres\")\"",
     "dist:mac": "npm run clean:release && npm run build:electron && electron-builder --mac --arm64",
     "dist:win": "npm run clean:release && npm run build:electron && electron-builder --win",
     "dist:linux": "npm run clean:release && npm run build:electron && electron-builder --linux"
