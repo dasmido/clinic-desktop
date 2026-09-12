@@ -112,6 +112,7 @@ type LabOrderInput = {
   test_name: string;
   urgency: LabOrderUrgency;
   clinical_indication: string;
+  inventory_item_id?: number | null;
 };
 
 type LabResultInput = {

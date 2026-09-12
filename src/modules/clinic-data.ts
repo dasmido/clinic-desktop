@@ -56,6 +56,9 @@ export type FinancialTransaction = {
   description: string;
   amount: string;
   occurred_on: string;
+  patient_id: number | null;
+  lab_order_id: number | null;
+  patient_name?: string | null;
   created_at: string;
 };
 
@@ -129,6 +132,8 @@ export type LabOrder = {
   urgency: LabOrderUrgency;
   clinical_indication: string;
   result_status: LabOrderStatus;
+  inventory_item_id: number | null;
+  inventory_item_name?: string | null;
   ordered_on: string;
   created_at: string;
 };

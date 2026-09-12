@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '@/modules/auth'
-import type { LabOrder, LabResult, LabResultInterpretation, MedicalRecord, Patient } from '@/modules/clinic-data'
+import type { InventoryItem, LabOrder, LabResult, LabResultInterpretation, MedicalRecord, Patient } from '@/modules/clinic-data'
 
 const { currentUser } = useAuth()
 const patients = ref<Patient[]>([])
 const records = ref<MedicalRecord[]>([])
 const orders = ref<LabOrder[]>([])
 const results = ref<LabResult[]>([])
+const inventoryItems = ref<InventoryItem[]>([])
 const selectedOrderId = ref<number | null>(null)
 const selectedOrder = ref<LabOrder | null>(null)
 const search = ref('')
@@ -18,7 +19,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const uploadedFileCount = ref(0)
 
-const orderForm = ref({ testName: '', urgency: 'routine' as 'routine' | 'urgent', indication: '' })
+const orderForm = ref({ testName: '', urgency: 'routine' as 'routine' | 'urgent', indication: '', inventoryItemId: 'none' })
 const resultForm = ref({ testName: '', value: '', referenceRange: '', interpretation: '' as LabResultInterpretation, notes: '' })
 
 const role = computed(() => currentUser.value?.role)
@@ -37,6 +38,14 @@ const filteredOrders = computed(() => {
 
 const patientItems = computed(() => patients.value.map((patient) => ({ label: `${patient.full_name} - ${patient.phone}`, value: String(patient.id) })))
 const recordItems = computed(() => records.value.map((record) => ({ label: `${formatDate(record.visit_date)}${record.diagnosis ? ` - ${record.diagnosis}` : ''}`, value: String(record.id) })))
+const inventoryItemItems = computed(() => [
+  { label: 'بدون ربط بالمخزون', value: 'none' },
+  ...inventoryItems.value.map((item) => ({ label: `${item.name} (${item.quantity} ${item.unit} متاح)`, value: String(item.id) })),
+])
+const interpretationValue = computed<string>({
+  get: () => resultForm.value.interpretation || 'none',
+  set: (value) => { resultForm.value.interpretation = (value === 'none' ? '' : value) as LabResultInterpretation },
+})
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('ar-SA', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
@@ -107,7 +116,7 @@ function openOrderModal() {
   patientId.value = ''
   recordId.value = ''
   records.value = []
-  orderForm.value = { testName: '', urgency: 'routine', indication: '' }
+  orderForm.value = { testName: '', urgency: 'routine', indication: '', inventoryItemId: 'none' }
   errorMessage.value = ''
   isOrderModalOpen.value = true
 }
@@ -123,6 +132,7 @@ async function createOrder() {
       test_name: orderForm.value.testName.trim(),
       urgency: orderForm.value.urgency,
       clinical_indication: orderForm.value.indication.trim(),
+      inventory_item_id: orderForm.value.inventoryItemId !== 'none' ? Number(orderForm.value.inventoryItemId) : null,
     })
     isOrderModalOpen.value = false
     await refresh()
@@ -190,7 +200,11 @@ watch(patientId, loadRecords)
 onMounted(async () => {
   isLoading.value = true
   try {
-    await Promise.all([loadOrders(), window.electronAPI.patients.list().then((rows) => { patients.value = rows })])
+    await Promise.all([
+      loadOrders(),
+      window.electronAPI.patients.list().then((rows) => { patients.value = rows }),
+      window.electronAPI.inventory.list().then((rows) => { inventoryItems.value = rows }),
+    ])
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر تحميل صفحة المختبر.'
   } finally {
@@ -232,14 +246,14 @@ onMounted(async () => {
         <div v-if="!selectedOrder" key="empty-order" class="flex min-h-56 flex-col items-center justify-center text-center"><UIcon name="i-lucide-clipboard-list" class="size-8 text-dimmed" /><p class="mt-3 font-medium text-highlighted">اختر طلب فحص</p><p class="mt-1 text-sm text-muted">اعرض تفاصيل الطلب وسجّل النتيجة من هنا.</p></div>
         <div v-else :key="`order-${selectedOrder.id}`">
           <div class="flex items-start justify-between gap-3"><div><p class="text-sm text-muted">تفاصيل الطلب</p><h2 class="mt-1 text-xl font-semibold text-highlighted">{{ selectedOrder.test_name }}</h2><p class="mt-1 text-sm text-toned">{{ selectedOrder.patient_name }}</p></div><UBadge :label="selectedOrder.urgency === 'urgent' ? 'عاجل' : 'روتيني'" :color="selectedOrder.urgency === 'urgent' ? 'error' : 'neutral'" /></div>
-          <dl class="mt-5 space-y-3 border-y border-default py-4 text-sm"><div class="flex justify-between gap-3"><dt class="text-muted">الطبيب/الطالب</dt><dd class="text-highlighted">{{ selectedOrder.ordered_by_name }}</dd></div><div class="flex justify-between gap-3"><dt class="text-muted">تاريخ الطلب</dt><dd class="text-highlighted">{{ formatDate(selectedOrder.ordered_on) }}</dd></div><div class="flex justify-between gap-3"><dt class="text-muted">السبب السريري</dt><dd class="text-left text-toned">{{ selectedOrder.clinical_indication || '—' }}</dd></div></dl>
+          <dl class="mt-5 space-y-3 border-y border-default py-4 text-sm"><div class="flex justify-between gap-3"><dt class="text-muted">الطبيب/الطالب</dt><dd class="text-highlighted">{{ selectedOrder.ordered_by_name }}</dd></div><div class="flex justify-between gap-3"><dt class="text-muted">تاريخ الطلب</dt><dd class="text-highlighted">{{ formatDate(selectedOrder.ordered_on) }}</dd></div><div class="flex justify-between gap-3"><dt class="text-muted">السبب السريري</dt><dd class="text-left text-toned">{{ selectedOrder.clinical_indication || '—' }}</dd></div><div v-if="selectedOrder.inventory_item_name" class="flex justify-between gap-3"><dt class="text-muted">صنف المخزون المستهلك</dt><dd class="text-left text-toned">{{ selectedOrder.inventory_item_name }}</dd></div></dl>
           <div class="mt-5"><h3 class="font-semibold text-highlighted">النتائج المسجلة</h3><div class="mt-3 divide-y divide-default"><div v-for="result in results" :key="result.id" class="py-3"><div class="flex items-start justify-between gap-2"><p class="font-medium text-highlighted">{{ result.test_name }}: {{ result.result_value }}</p><UBadge v-if="result.interpretation" :label="result.interpretation === 'normal' ? 'طبيعي' : result.interpretation === 'critical' ? 'حرج' : result.interpretation === 'high' ? 'مرتفع' : 'منخفض'" :color="result.interpretation === 'critical' ? 'error' : result.interpretation === 'normal' ? 'success' : 'warning'" variant="subtle" /></div><p class="mt-1 text-xs text-muted">{{ result.reference_range || 'لا يوجد مدى مرجعي' }} · {{ result.recorded_by_name }}</p><p v-if="result.notes" class="mt-1 text-sm text-toned">{{ result.notes }}</p></div><p v-if="!results.length" class="py-3 text-sm text-muted">لم تسجل نتيجة بعد.</p></div></div>
-          <form v-if="canRecordResults" class="mt-5 space-y-3 border-t border-default pt-4" @submit.prevent="createResult"><h3 class="font-semibold text-highlighted">تسجيل نتيجة</h3><div class="grid gap-3 sm:grid-cols-2"><UInput v-model="resultForm.testName" placeholder="اسم التحليل" /><UInput v-model="resultForm.value" placeholder="النتيجة" /><UInput v-model="resultForm.referenceRange" placeholder="المدى المرجعي" /><USelect v-model="resultForm.interpretation" :items="[{ label: 'غير محدد', value: '' }, { label: 'طبيعي', value: 'normal' }, { label: 'منخفض', value: 'low' }, { label: 'مرتفع', value: 'high' }, { label: 'حرج', value: 'critical' }]" /></div><UTextarea v-model="resultForm.notes" placeholder="ملاحظات المختبر" /><div class="flex flex-wrap items-center gap-2"><UButton type="submit" icon="i-lucide-clipboard-check" label="حفظ النتيجة" :loading="isLoading" :disabled="!resultForm.testName.trim() || !resultForm.value.trim()" /><UButton type="button" icon="i-lucide-paperclip" label="رفع ملف النتيجة" color="neutral" variant="soft" :loading="isLoading" @click="uploadResultFile" /><span v-if="uploadedFileCount" class="text-xs text-success">تم رفع {{ uploadedFileCount }} ملف</span></div></form>
+          <form v-if="canRecordResults" class="mt-5 space-y-3 border-t border-default pt-4" @submit.prevent="createResult"><h3 class="font-semibold text-highlighted">تسجيل نتيجة</h3><div class="grid gap-3 sm:grid-cols-2"><UInput v-model="resultForm.testName" placeholder="اسم التحليل" /><UInput v-model="resultForm.value" placeholder="النتيجة" /><UInput v-model="resultForm.referenceRange" placeholder="المدى المرجعي" /><USelect v-model="interpretationValue" :items="[{ label: 'غير محدد', value: 'none' }, { label: 'طبيعي', value: 'normal' }, { label: 'منخفض', value: 'low' }, { label: 'مرتفع', value: 'high' }, { label: 'حرج', value: 'critical' }]" /></div><UTextarea v-model="resultForm.notes" placeholder="ملاحظات المختبر" /><div class="flex flex-wrap items-center gap-2"><UButton type="submit" icon="i-lucide-clipboard-check" label="حفظ النتيجة" :loading="isLoading" :disabled="!resultForm.testName.trim() || !resultForm.value.trim()" /><UButton type="button" icon="i-lucide-paperclip" label="رفع ملف النتيجة" color="neutral" variant="soft" :loading="isLoading" @click="uploadResultFile" /><span v-if="uploadedFileCount" class="text-xs text-success">تم رفع {{ uploadedFileCount }} ملف</span></div></form>
           <div v-if="canChangeStatus || canDelete" class="mt-5 flex flex-wrap gap-2 border-t border-default pt-4"><UButton v-if="canChangeStatus" icon="i-lucide-ban" label="إلغاء الطلب" color="neutral" variant="soft" :loading="isLoading" @click="cancelOrder" /><UButton v-if="canDelete" icon="i-lucide-trash-2" label="حذف الطلب" color="error" variant="ghost" :loading="isLoading" @click="deleteOrder" /></div>
         </div>
       </section>
     </div>
 
-    <UModal v-model:open="isOrderModalOpen" title="طلب فحص جديد"><template #body><form class="space-y-4" @submit.prevent="createOrder"><UFormField label="المراجع" required><USelect v-model="patientId" :items="patientItems" placeholder="اختر مراجعاً" class="w-full" /></UFormField><UFormField label="الزيارة الموثقة" required><USelect v-model="recordId" :items="recordItems" placeholder="اختر زيارة" class="w-full" :disabled="!patientId" /></UFormField><UFormField label="اسم الفحص" required><UInput v-model="orderForm.testName" class="w-full" /></UFormField><UFormField label="الأولوية"><USelect v-model="orderForm.urgency" :items="[{ label: 'روتيني', value: 'routine' }, { label: 'عاجل', value: 'urgent' }]" class="w-full" /></UFormField><UFormField label="السبب السريري"><UTextarea v-model="orderForm.indication" class="w-full" /></UFormField><p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p><div class="flex justify-end gap-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isOrderModalOpen = false" /><UButton type="submit" icon="i-lucide-flask-conical" label="إنشاء الطلب" :loading="isLoading" :disabled="!patientId || !recordId || !orderForm.testName.trim()" /></div></form></template></UModal>
+    <UModal v-model:open="isOrderModalOpen" title="طلب فحص جديد"><template #body><form class="space-y-4" @submit.prevent="createOrder"><UFormField label="المراجع" required><USelect v-model="patientId" :items="patientItems" placeholder="اختر مراجعاً" class="w-full" /></UFormField><UFormField label="الزيارة الموثقة" required><USelect v-model="recordId" :items="recordItems" placeholder="اختر زيارة" class="w-full" :disabled="!patientId" /></UFormField><UFormField label="اسم الفحص" required><UInput v-model="orderForm.testName" class="w-full" /></UFormField><UFormField label="الأولوية"><USelect v-model="orderForm.urgency" :items="[{ label: 'روتيني', value: 'routine' }, { label: 'عاجل', value: 'urgent' }]" class="w-full" /></UFormField><UFormField label="صنف المخزون" description="عند الاختيار، تُخصم وحدة واحدة من المخزون وتُسجَّل كإيراد على حساب المراجع."><USelect v-model="orderForm.inventoryItemId" :items="inventoryItemItems" class="w-full" /></UFormField><UFormField label="السبب السريري"><UTextarea v-model="orderForm.indication" class="w-full" /></UFormField><p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p><div class="flex justify-end gap-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isOrderModalOpen = false" /><UButton type="submit" icon="i-lucide-flask-conical" label="إنشاء الطلب" :loading="isLoading" :disabled="!patientId || !recordId || !orderForm.testName.trim()" /></div></form></template></UModal>
   </section>
 </template>

@@ -88,6 +88,8 @@ export type FinancialTransactionsTable = {
   description: string;
   amount: number;
   occurred_on: ColumnType<string, string | undefined, string>;
+  patient_id: ColumnType<number | null, number | null | undefined, number | null>;
+  lab_order_id: ColumnType<number | null, number | null | undefined, number | null>;
   created_at: Timestamp;
 };
 
@@ -141,6 +143,7 @@ export type LabOrdersTable = {
   urgency: ColumnType<LabOrderUrgency, LabOrderUrgency | undefined, LabOrderUrgency>;
   clinical_indication: ColumnType<string, string | undefined, string>;
   result_status: ColumnType<LabOrderStatus, LabOrderStatus | undefined, LabOrderStatus>;
+  inventory_item_id: ColumnType<number | null, number | null | undefined, number | null>;
   ordered_on: Timestamp;
   created_at: Timestamp;
 };

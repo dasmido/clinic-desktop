@@ -1,7 +1,9 @@
 import type { Kysely } from 'kysely';
 import type { Database, LabOrder, LabOrderStatus, LabResult, LabResultInterpretation, PatientMedicalRecord } from '../../src/database/types.js';
+import { adjustInventoryQuantity } from './inventory.repository.js';
+import { createTransaction } from './finance.repository.js';
 
-export type LabOrderWithDetails = LabOrder & { ordered_by_name: string; patient_name: string };
+export type LabOrderWithDetails = LabOrder & { ordered_by_name: string; patient_name: string; inventory_item_name: string | null };
 export type LabResultWithRecorder = LabResult & { recorded_by_name: string };
 
 export type CreateLabOrderInput = {
@@ -11,6 +13,7 @@ export type CreateLabOrderInput = {
   test_name: string;
   urgency: 'routine' | 'urgent';
   clinical_indication: string;
+  inventory_item_id?: number | null;
 };
 
 export type CreateLabResultInput = {
@@ -28,8 +31,9 @@ export async function listLabOrdersByPatient(db: Kysely<Database>, patientId: nu
     .selectFrom('lab_orders')
     .innerJoin('users', 'users.id', 'lab_orders.ordered_by_user_id')
     .innerJoin('patients', 'patients.id', 'lab_orders.patient_id')
+    .leftJoin('inventory_items', 'inventory_items.id', 'lab_orders.inventory_item_id')
     .selectAll('lab_orders')
-    .select(['users.username as ordered_by_name', 'patients.full_name as patient_name'])
+    .select(['users.username as ordered_by_name', 'patients.full_name as patient_name', 'inventory_items.name as inventory_item_name'])
     .where('lab_orders.patient_id', '=', patientId)
     .orderBy('lab_orders.ordered_on', 'desc')
     .execute();
@@ -40,8 +44,9 @@ export async function listOpenLabOrders(db: Kysely<Database>): Promise<LabOrderW
     .selectFrom('lab_orders')
     .innerJoin('users', 'users.id', 'lab_orders.ordered_by_user_id')
     .innerJoin('patients', 'patients.id', 'lab_orders.patient_id')
+    .leftJoin('inventory_items', 'inventory_items.id', 'lab_orders.inventory_item_id')
     .selectAll('lab_orders')
-    .select(['users.username as ordered_by_name', 'patients.full_name as patient_name'])
+    .select(['users.username as ordered_by_name', 'patients.full_name as patient_name', 'inventory_items.name as inventory_item_name'])
     .where('lab_orders.result_status', '=', 'pending')
     .orderBy('lab_orders.urgency', 'desc')
     .orderBy('lab_orders.ordered_on', 'asc')
@@ -60,17 +65,42 @@ export async function listLabResultsByOrder(db: Kysely<Database>, orderId: numbe
 }
 
 export async function createLabOrder(db: Kysely<Database>, order: CreateLabOrderInput): Promise<LabOrder> {
-  const medicalRecord: Pick<PatientMedicalRecord, 'patient_id'> | undefined = await db
-    .selectFrom('patient_medical_records')
-    .select('patient_id')
-    .where('id', '=', order.medical_record_id)
-    .executeTakeFirst();
+  return db.transaction().execute(async (trx) => {
+    const medicalRecord: Pick<PatientMedicalRecord, 'patient_id'> | undefined = await trx
+      .selectFrom('patient_medical_records')
+      .select('patient_id')
+      .where('id', '=', order.medical_record_id)
+      .executeTakeFirst();
 
-  if (!medicalRecord || medicalRecord.patient_id !== order.patient_id) {
-    throw new Error('The medical record does not belong to this patient.');
-  }
+    if (!medicalRecord || medicalRecord.patient_id !== order.patient_id) {
+      throw new Error('The medical record does not belong to this patient.');
+    }
 
-  return db.insertInto('lab_orders').values(order).returningAll().executeTakeFirstOrThrow();
+    const createdOrder = await trx.insertInto('lab_orders').values(order).returningAll().executeTakeFirstOrThrow();
+
+    if (order.inventory_item_id != null) {
+      // Recording the lab test consumes one unit of the linked storage item and bills the patient for it.
+      const item = await adjustInventoryQuantity(
+        trx,
+        order.inventory_item_id,
+        -1,
+        `فحص مخبري: ${order.test_name}`,
+        `طلب فحص رقم ${createdOrder.id}`,
+      );
+
+      await createTransaction(trx, {
+        transaction_type: 'income',
+        category: 'فحوصات مخبرية',
+        description: `فحص ${order.test_name}`,
+        amount: Number(item.unit_cost),
+        occurred_on: new Date().toISOString().slice(0, 10),
+        patient_id: order.patient_id,
+        lab_order_id: createdOrder.id,
+      });
+    }
+
+    return createdOrder;
+  });
 }
 
 export async function createLabResult(

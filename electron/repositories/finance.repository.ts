@@ -3,12 +3,16 @@ import type { Database, FinancialTransaction, FinancialTransactionType } from '.
 
 export type FinanceSummary = { income: string; expenses: string };
 
+export type FinancialTransactionWithPatient = FinancialTransaction & { patient_name: string | null };
+
 export type CreateTransactionInput = {
   transaction_type: FinancialTransactionType;
   category: string;
   description: string;
   amount: number;
   occurred_on: string;
+  patient_id?: number | null;
+  lab_order_id?: number | null;
 };
 
 export async function getFinanceSummary(
@@ -33,12 +37,14 @@ export async function getFinanceSummary(
 export async function listTransactions(
   db: Kysely<Database>,
   limit = 100,
-): Promise<FinancialTransaction[]> {
+): Promise<FinancialTransactionWithPatient[]> {
   return db
     .selectFrom('financial_transactions')
-    .selectAll()
-    .orderBy('occurred_on', 'desc')
-    .orderBy('id', 'desc')
+    .leftJoin('patients', 'patients.id', 'financial_transactions.patient_id')
+    .selectAll('financial_transactions')
+    .select('patients.full_name as patient_name')
+    .orderBy('financial_transactions.occurred_on', 'desc')
+    .orderBy('financial_transactions.id', 'desc')
     .limit(limit)
     .execute();
 }
