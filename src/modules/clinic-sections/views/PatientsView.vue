@@ -75,11 +75,11 @@ async function savePatient() {
   }
 }
 
-async function deletePatient() {
-  if (!editingPatient.value || !window.confirm(`حذف سجل ${editingPatient.value.full_name} وجميع مواعيده وسجله الطبي؟`)) return
+async function deletePatient(patient = editingPatient.value) {
+  if (!patient || !window.confirm(`حذف سجل ${patient.full_name} وجميع مواعيده وسجله الطبي؟`)) return
   isLoading.value = true
   try {
-    await window.electronAPI.patients.delete(editingPatient.value.id)
+    await window.electronAPI.patients.delete(patient.id)
     isModalOpen.value = false
     await loadPatients()
   } catch (error) {
@@ -87,6 +87,10 @@ async function deletePatient() {
   } finally {
     isLoading.value = false
   }
+}
+
+function deletePatientFromCard(patient: Patient) {
+  return deletePatient(patient)
 }
 
 onMounted(loadPatients)
@@ -117,23 +121,31 @@ onMounted(loadPatients)
         <p class="font-medium text-highlighted">لا توجد نتائج</p>
         <p class="text-sm text-muted">أضف أول مراجع لبدء تنظيم مواعيد العيادة.</p>
       </div>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full min-w-165 text-right text-sm">
-          <thead class="border-b border-default bg-elevated/55 text-xs font-medium text-muted">
-            <tr>
-              <th class="px-5 py-3">المراجع</th><th class="px-5 py-3">الهاتف</th><th class="px-5 py-3">تاريخ الميلاد</th><th class="px-5 py-3">ملاحظات</th><th class="w-28 px-3 py-3"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-default">
-            <tr v-for="patient in filteredPatients" :key="patient.id" class="transition-colors hover:bg-elevated/35">
-              <td class="px-5 py-4 font-semibold text-highlighted">{{ patient.full_name }}</td>
-              <td class="px-5 py-4 text-toned" dir="ltr">{{ patient.phone }}</td>
-              <td class="px-5 py-4 text-muted">{{ patient.date_of_birth || '—' }}</td>
-              <td class="max-w-70 truncate px-5 py-4 text-muted">{{ patient.notes || '—' }}</td>
-              <td class="px-3 py-3"><div class="flex gap-1"><UButton icon="i-lucide-notebook-pen" color="neutral" variant="ghost" aria-label="السجل الطبي" :to="`/patients/${patient.id}/records`" /><UButton icon="i-lucide-pencil" color="neutral" variant="ghost" aria-label="تعديل المراجع" @click="openEditModal(patient)" /></div></td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-else class="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <article v-for="patient in filteredPatients" :key="patient.id" class="flex min-w-0 flex-col border border-default bg-default p-4 transition-shadow hover:shadow-md">
+          <div class="mt-2 flex justify-center">
+            <UAvatar icon="i-lucide-user-round" size="xl" color="primary" variant="soft" :alt="patient.full_name" />
+          </div>
+          <div class="mt-4 min-w-0 text-center">
+            <h2 class="truncate font-semibold text-highlighted" :title="patient.full_name">{{ patient.full_name }}</h2>
+            <p class="mt-1 truncate text-sm text-toned" dir="ltr" :title="patient.phone">{{ patient.phone }}</p>
+            <div class="mt-2 flex justify-center gap-1">
+              <UButton icon="i-lucide-pencil" color="neutral" variant="ghost" size="sm" aria-label="تعديل المراجع" @click="openEditModal(patient)" />
+              <UButton icon="i-lucide-trash-2" color="error" variant="ghost" size="sm" aria-label="حذف المراجع" :loading="isLoading" @click="deletePatientFromCard(patient)" />
+            </div>
+          </div>
+          <dl class="mt-4 space-y-2 border-t border-default pt-3 text-sm">
+            <div class="flex items-center justify-between gap-2">
+              <dt class="text-muted">الميلاد</dt>
+              <dd class="truncate text-highlighted">{{ patient.date_of_birth || '—' }}</dd>
+            </div>
+            <div class="flex items-start justify-between gap-2">
+              <dt class="shrink-0 text-muted">ملاحظات</dt>
+              <dd class="line-clamp-2 text-left text-muted" :title="patient.notes || undefined">{{ patient.notes || '—' }}</dd>
+            </div>
+          </dl>
+          <UButton class="mt-4 w-full" icon="i-lucide-notebook-pen" label="السجل الطبي" :to="`/patients/${patient.id}/records`" />
+        </article>
       </div>
     </div>
 
@@ -145,7 +157,7 @@ onMounted(loadPatients)
           <UFormField label="تاريخ الميلاد"><UInput v-model="form.dateOfBirth" type="date" class="w-full" /></UFormField>
           <UFormField label="ملاحظات"><UTextarea v-model="form.notes" class="w-full" :rows="3" /></UFormField>
           <p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p>
-          <div class="flex justify-between gap-2 pt-2"><UButton v-if="editingPatient" icon="i-lucide-trash-2" color="error" variant="ghost" aria-label="حذف المراجع" :loading="isLoading" @click="deletePatient" /><span class="flex gap-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isModalOpen = false" /><UButton type="submit" :loading="isLoading" :label="editingPatient ? 'حفظ التعديلات' : 'إضافة المراجع'" /></span></div>
+          <div class="flex justify-between gap-2 pt-2"><UButton v-if="editingPatient" icon="i-lucide-trash-2" color="error" variant="ghost" aria-label="حذف المراجع" :loading="isLoading" @click="deletePatient()" /><span class="flex gap-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isModalOpen = false" /><UButton type="submit" :loading="isLoading" :label="editingPatient ? 'حفظ التعديلات' : 'إضافة المراجع'" /></span></div>
         </form>
       </template>
     </UModal>
