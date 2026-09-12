@@ -153,6 +153,10 @@ async function initialiseDatabaseCluster() {
         '--auth=password',
         '--username=postgres',
         `--pwfile=${passwordFile}`,
+        // Force UTF8 regardless of OS locale/codepage (e.g. Windows defaults to WIN1252),
+        // which would otherwise reject non-Latin1 text such as Arabic.
+        '--encoding=UTF8',
+        '--locale=C',
         `--lc-messages=${locale}`,
       ], {
         env: { ...process.env, LC_MESSAGES: locale },
