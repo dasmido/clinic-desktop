@@ -69,6 +69,19 @@
             "x64"
           ]
         }
+      ],
+      "extraResources": [
+        {
+          "from": "src/database/migrations",
+          "to": "database/migrations",
+          "filter": [
+            "*.sql"
+          ]
+        },
+        {
+          "from": "node_modules/@embedded-postgres/windows-x64/native",
+          "to": "postgres/windows-x64/native"
+        }
       ]
     },
     "linux": {
@@ -78,6 +91,19 @@
           "arch": [
             "x64"
           ]
+        }
+      ],
+      "extraResources": [
+        {
+          "from": "src/database/migrations",
+          "to": "database/migrations",
+          "filter": [
+            "*.sql"
+          ]
+        },
+        {
+          "from": "node_modules/@embedded-postgres/linux-x64/native",
+          "to": "postgres/linux-x64/native"
         }
       ]
     }
