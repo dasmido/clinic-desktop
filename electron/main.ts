@@ -67,6 +67,7 @@ import {
 import {
   createPrescription,
   deletePrescription,
+  listAllPrescriptions,
   listPrescriptionsByMedicalRecord,
   listPrescriptionsByPatient,
   updatePrescription,
@@ -342,6 +343,11 @@ function assertPrescriptionStatus(status: unknown): asserts status is Prescripti
 }
 
 function registerPrescriptionHandlers() {
+  ipcMain.handle('prescriptions:list-all', async () => {
+    assertUserHasRole(['doctor', 'nurse', 'pharmacy', 'admin']);
+    return listAllPrescriptions(await getDatabase());
+  });
+
   ipcMain.handle('prescriptions:list-by-patient', async (_event, patientId: number) => {
     assertUserHasRole(['doctor', 'nurse', 'pharmacy', 'admin']);
     return listPrescriptionsByPatient(await getDatabase(), patientId);

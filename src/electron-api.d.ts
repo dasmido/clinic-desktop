@@ -102,6 +102,7 @@ type PrescriptionInput = {
   frequency: string;
   duration_days: number | null;
   notes: string;
+  status?: PrescriptionStatus;
 };
 
 type LabOrderInput = {
@@ -196,6 +197,7 @@ declare global {
         deleteAttachment(attachmentId: number): Promise<boolean>;
       };
       prescriptions: {
+        listAll(): Promise<(Prescription & { patient_name?: string; patient_phone?: string })[]>;
         listByPatient(patientId: number): Promise<Prescription[]>;
         listByMedicalRecord(medicalRecordId: number): Promise<Prescription[]>;
         create(input: PrescriptionInput): Promise<Prescription>;

@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 		deleteAttachment: (attachmentId: number) => ipcRenderer.invoke('medical-records:delete-attachment', attachmentId),
 	},
 	prescriptions: {
+		listAll: () => ipcRenderer.invoke('prescriptions:list-all'),
 		listByPatient: (patientId: number) => ipcRenderer.invoke('prescriptions:list-by-patient', patientId),
 		listByMedicalRecord: (medicalRecordId: number) => ipcRenderer.invoke('prescriptions:list-by-medical-record', medicalRecordId),
 		create: (input: unknown) => ipcRenderer.invoke('prescriptions:create', input),

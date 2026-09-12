@@ -98,6 +98,8 @@ export type Prescription = {
   id: number;
   medical_record_id: number;
   patient_id: number;
+  patient_name?: string;
+  patient_phone?: string;
   prescribed_by_user_id: number;
   prescribed_by_name: string;
   medicine_name: string;

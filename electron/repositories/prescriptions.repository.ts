@@ -3,6 +3,11 @@ import type { Database, PatientMedicalRecord, Prescription, PrescriptionStatus }
 
 export type PrescriptionWithAuthor = Prescription & { prescribed_by_name: string };
 
+export type PrescriptionWithPatientAndAuthor = PrescriptionWithAuthor & {
+  patient_name: string;
+  patient_phone: string;
+};
+
 export type CreatePrescriptionInput = {
   medical_record_id: number;
   patient_id: number;
@@ -12,6 +17,7 @@ export type CreatePrescriptionInput = {
   frequency: string;
   duration_days: number | null;
   notes: string;
+  status?: PrescriptionStatus;
 };
 
 export type UpdatePrescriptionInput = Omit<CreatePrescriptionInput, 'medical_record_id' | 'patient_id' | 'prescribed_by_user_id'>;
@@ -26,6 +32,23 @@ export async function listPrescriptionsByPatient(
     .selectAll('prescriptions')
     .select('users.username as prescribed_by_name')
     .where('prescriptions.patient_id', '=', patientId)
+    .orderBy('prescriptions.prescribed_on', 'desc')
+    .execute();
+}
+
+export async function listAllPrescriptions(
+  db: Kysely<Database>,
+): Promise<PrescriptionWithPatientAndAuthor[]> {
+  return db
+    .selectFrom('prescriptions')
+    .innerJoin('users', 'users.id', 'prescriptions.prescribed_by_user_id')
+    .innerJoin('patients', 'patients.id', 'prescriptions.patient_id')
+    .selectAll('prescriptions')
+    .select([
+      'users.username as prescribed_by_name',
+      'patients.full_name as patient_name',
+      'patients.phone as patient_phone',
+    ])
     .orderBy('prescriptions.prescribed_on', 'desc')
     .execute();
 }
