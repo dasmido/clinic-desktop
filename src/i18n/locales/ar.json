@@ -41,7 +41,8 @@
     "settingsTeam": "الفريق",
     "settingsBilling": "الفوترة",
     "createTeam": "إنشاء فريق",
-    "appname": "عيادتي"
+    "appname": "عيادتي",
+    "dashboard": "لوحة التحكم"
   },
   "user": {
     "profile": "الملف الشخصي",

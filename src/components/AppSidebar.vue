@@ -17,6 +17,11 @@ const colorMode = useColorMode()
 function getItems() {
   return [
     {
+      label: t('sidebar.dashboard'),
+      icon: 'i-lucide-home',
+      to: '/'
+    },
+    {
       label: t('sidebar.patients'),
       icon: 'i-lucide-users',
       to: '/patients'
@@ -35,6 +40,11 @@ function getItems() {
       label: 'الوصفات الطبية',
       icon: 'i-lucide-pill',
       to: '/prescriptions'
+    },
+    {
+      label: 'الفحوصات والتحاليل',
+      icon: 'i-lucide-flask-conical',
+      to: '/labs'
     },
     {
       label: t('sidebar.finance'),

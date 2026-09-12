@@ -78,31 +78,29 @@ export async function createLabResult(
   orderId: number,
   result: CreateLabResultInput,
 ): Promise<LabResult> {
-  return db.transaction().execute(async (transaction) => {
-    const order = await transaction
-      .selectFrom('lab_orders')
-      .select(['patient_id', 'result_status'])
-      .where('id', '=', orderId)
-      .executeTakeFirst();
+  const order = await db
+    .selectFrom('lab_orders')
+    .select(['patient_id', 'result_status'])
+    .where('id', '=', orderId)
+    .executeTakeFirst();
 
-    if (!order || order.patient_id !== result.patient_id || order.result_status === 'cancelled') {
-      throw new Error('The lab order cannot accept results.');
-    }
+  if (!order || order.patient_id !== result.patient_id || order.result_status === 'cancelled') {
+    throw new Error('The lab order cannot accept results.');
+  }
 
-    const createdResult = await transaction
-      .insertInto('lab_results')
-      .values({ ...result, lab_order_id: orderId })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+  const createdResult = await db
+    .insertInto('lab_results')
+    .values({ ...result, lab_order_id: orderId })
+    .returningAll()
+    .executeTakeFirstOrThrow();
 
-    await transaction
-      .updateTable('lab_orders')
-      .set({ result_status: 'resulted' })
-      .where('id', '=', orderId)
-      .executeTakeFirstOrThrow();
+  await db
+    .updateTable('lab_orders')
+    .set({ result_status: 'resulted' })
+    .where('id', '=', orderId)
+    .executeTakeFirstOrThrow();
 
-    return createdResult;
-  });
+  return createdResult;
 }
 
 export async function updateLabOrderStatus(
