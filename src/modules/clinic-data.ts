@@ -180,3 +180,17 @@ export type ClinicalAlert = {
   created_at: string;
   dismissed_at: string | null;
 };
+
+export type AppCurrency = 'USD' | 'IQD';
+export type PrintPaperSize = 'A4' | '80MM';
+
+export type AppSettings = {
+  id: 1;
+  clinic_name: string;
+  currency: AppCurrency;
+  print_paper_size: PrintPaperSize;
+  telegram_bot_token: string;
+  telegram_chat_id: string;
+  telegram_notifications_enabled: boolean;
+  updated_at: string;
+};

@@ -193,6 +193,20 @@ export type PatientClinicalAlertsTable = {
   dismissed_at: Timestamp | null;
 };
 
+export type AppCurrency = 'USD' | 'IQD';
+export type PrintPaperSize = 'A4' | '80MM';
+
+export type AppSettingsTable = {
+  id: ColumnType<1, 1 | undefined, 1>;
+  clinic_name: ColumnType<string, string | undefined, string>;
+  currency: ColumnType<AppCurrency, AppCurrency | undefined, AppCurrency>;
+  print_paper_size: ColumnType<PrintPaperSize, PrintPaperSize | undefined, PrintPaperSize>;
+  telegram_bot_token: ColumnType<string, string | undefined, string>;
+  telegram_chat_id: ColumnType<string, string | undefined, string>;
+  telegram_notifications_enabled: ColumnType<boolean, boolean | undefined, boolean>;
+  updated_at: Timestamp;
+};
+
 export type Database = {
   users: UsersTable;
   patients: PatientsTable;
@@ -210,6 +224,7 @@ export type Database = {
   visit_templates: VisitTemplatesTable;
   visit_template_uses: VisitTemplateUsesTable;
   patient_clinical_alerts: PatientClinicalAlertsTable;
+  app_settings: AppSettingsTable;
 };
 
 export type User = Selectable<UsersTable>;
@@ -261,3 +276,6 @@ export type VisitTemplateUse = Selectable<VisitTemplateUsesTable>;
 export type ClinicalAlert = Selectable<PatientClinicalAlertsTable>;
 export type NewClinicalAlert = Insertable<PatientClinicalAlertsTable>;
 export type ClinicalAlertUpdate = Updateable<PatientClinicalAlertsTable>;
+
+export type AppSettings = Selectable<AppSettingsTable>;
+export type AppSettingsUpdate = Updateable<AppSettingsTable>;

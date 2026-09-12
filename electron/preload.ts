@@ -4,6 +4,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 	database: {
 		isReady: () => ipcRenderer.invoke('database:is-ready'),
 	},
+	settings: {
+		get: () => ipcRenderer.invoke('settings:get'),
+		update: (input: unknown) => ipcRenderer.invoke('settings:update', input),
+	},
 	auth: {
 		hasUsers: () => ipcRenderer.invoke('auth:has-users'),
 		register: (username: string, password: string) => ipcRenderer.invoke('auth:register', username, password),

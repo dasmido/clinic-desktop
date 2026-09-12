@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { FinanceSummary, FinancialTransaction, FinancialTransactionType, InventoryItem } from '@/modules/clinic-data'
+import { useAppSettings } from '@/modules/settings/composables/useAppSettings'
 
+const { settings, loadSettings } = useAppSettings()
 const activeView = ref<'finance' | 'inventory'>('finance')
 const transactions = ref<FinancialTransaction[]>([])
 const inventoryItems = ref<InventoryItem[]>([])
@@ -22,7 +24,9 @@ const lowStockItems = computed(() => inventoryItems.value.filter((item) => Numbe
 const recentTransactions = computed(() => transactions.value.slice(0, 8))
 
 function money(value: string | number) {
-  return new Intl.NumberFormat('ar-IQ', { style: 'currency', currency: 'IQD', maximumFractionDigits: 2 }).format(Number(value))
+  const currency = settings.value?.currency ?? 'USD'
+  const locale = currency === 'IQD' ? 'ar-IQ' : 'en-US'
+  return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value))
 }
 
 function number(value: string | number) {
@@ -181,7 +185,10 @@ async function deleteItem(item: InventoryItem) {
   }
 }
 
-onMounted(loadData)
+onMounted(async () => {
+  if (!settings.value) await loadSettings()
+  await loadData()
+})
 </script>
 
 <template>

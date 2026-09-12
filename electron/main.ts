@@ -77,6 +77,7 @@ import {
   type UpdatePrescriptionInput,
 } from './repositories/prescriptions.repository.js';
 import type { PrescriptionStatus } from '../src/database/types.js';
+import { getAppSettings, updateAppSettings } from './repositories/settings.repository.js';
 import {
   createLabOrder,
   createLabResult,
@@ -145,6 +146,15 @@ function registerDatabaseHandlers() {
   ipcMain.handle('database:is-ready', async () => {
     await startDatabase();
     return true;
+  });
+}
+
+function registerSettingsHandlers() {
+  ipcMain.handle('settings:get', async () => getAppSettings(await getDatabase()));
+
+  ipcMain.handle('settings:update', async (_event, input: Parameters<typeof updateAppSettings>[1]) => {
+    assertUserHasRole(['admin']);
+    return updateAppSettings(await getDatabase(), input);
   });
 }
 
@@ -680,6 +690,7 @@ app.whenReady().then(() => {
   registerLabHandlers();
   registerVisitTemplateHandlers();
   registerClinicalAlertHandlers();
+  registerSettingsHandlers();
   createWindow();
   // Boot Postgres in parallel; IPC handlers await the shared startup promise as needed.
   void startDatabase();

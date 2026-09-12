@@ -1,18 +1,24 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useColorMode } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 import { useAuth } from '@/modules/auth'
+import { useAppSettings } from '@/modules/settings/composables/useAppSettings'
 
 const { t } = useI18n()
 const router = useRouter()
 const { currentUser, logout } = useAuth()
+const { settings, loadSettings } = useAppSettings()
 
 const open = defineModel<boolean>('open', { default: true })
 
 const colorMode = useColorMode()
+
+onMounted(() => {
+  if (!settings.value) void loadSettings()
+})
 
 function getItems() {
   return [
@@ -27,14 +33,9 @@ function getItems() {
       to: '/patients'
     },
     {
-      label: 'الزيارات الطبية',
+      label: 'المواعيد',
       icon: 'i-lucide-calendar-days',
       to: '/appointments'
-    },
-    {
-      label: 'مساحة العمل السريري',
-      icon: 'i-lucide-stethoscope',
-      to: '/clinical-workspace'
     },
     {
       label: 'الوصفات الطبية',
@@ -72,7 +73,7 @@ const userItems = computed<DropdownMenuItem[][]>(() => [
     {
       label: t('user.settings'),
       icon: 'i-lucide-settings',
-      to: '/settings'
+      to: '/settings/general'
     },
     ...(currentUser.value?.role === 'admin'
       ? [
@@ -141,7 +142,7 @@ const userItems = computed<DropdownMenuItem[][]>(() => [
   >
     <template #header>
       <div class="px-2 py-1.5 font-semibold">
-        {{ t('sidebar.appname') }}
+        {{ settings?.clinic_name || t('sidebar.appname') }}
       </div>
     </template>
 

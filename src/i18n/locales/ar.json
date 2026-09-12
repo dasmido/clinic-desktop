@@ -17,7 +17,19 @@
     "clinicNamePlaceholder": "أدخل اسم العيادة",
     "language": "اللغة",
     "arabic": "العربية",
-    "save": "حفظ التغييرات"
+    "save": "حفظ التغييرات",
+    "saved": "تم حفظ الإعدادات بنجاح.",
+    "currency": "العملة",
+    "usd": "دولار أمريكي (USD)",
+    "iqd": "دينار عراقي (IQD)",
+    "printPaperSize": "حجم ورق الطباعة",
+    "paperA4": "A4",
+    "paper80mm": "80 مم (طابعة إيصالات)",
+    "telegramTitle": "تكامل تيليجرام",
+    "telegramSubtitle": "إرسال إشعارات العيادة عبر بوت تيليجرام.",
+    "telegramEnable": "تفعيل إشعارات تيليجرام",
+    "telegramBotToken": "رمز البوت (Bot Token)",
+    "telegramChatId": "معرف المحادثة (Chat ID)"
   },
   "sections": {
     "patients": "المراجعين",

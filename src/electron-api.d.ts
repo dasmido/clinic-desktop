@@ -3,6 +3,7 @@ export {};
 import type {
   Appointment,
   AppointmentStatus,
+  AppSettings,
   Doctor,
   DoctorAvailability,
   FinanceSummary,
@@ -144,6 +145,10 @@ declare global {
     electronAPI: {
       database: {
         isReady(): Promise<boolean>;
+      };
+      settings: {
+        get(): Promise<AppSettings>;
+        update(input: Partial<Pick<AppSettings, 'clinic_name' | 'currency' | 'print_paper_size' | 'telegram_bot_token' | 'telegram_chat_id' | 'telegram_notifications_enabled'>>): Promise<AppSettings>;
       };
       auth: {
         hasUsers(): Promise<boolean>;
