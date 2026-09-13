@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -34,6 +34,7 @@ import {
   listDoctorAvailability,
   listDoctors,
   removeDoctorAvailability,
+  updateDoctorConsultationFee,
 } from './repositories/doctors.repository.js';
 import {
   adjustInventoryQuantity,
@@ -108,6 +109,11 @@ import {
 import type { LabOrderStatus } from '../src/database/types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Last line of defense: log stray errors (e.g. a dropped DB connection during shutdown)
+// instead of letting Electron crash the whole process and leave a dead/white window.
+process.on('uncaughtException', (error) => console.error('[main] uncaughtException', error));
+process.on('unhandledRejection', (reason) => console.error('[main] unhandledRejection', reason));
 
 let win: BrowserWindow | null;
 
@@ -230,9 +236,15 @@ function registerDoctorHandlers() {
     return listDoctors(await getDatabase());
   });
 
-  ipcMain.handle('doctors:create-profile', async (_event, userId: number, displayName: string) => {
+  ipcMain.handle('doctors:create-profile', async (_event, userId: number, displayName: string, consultationFee?: number) => {
     assertSignedIn();
-    await createDoctorProfile(await getDatabase(), userId, displayName);
+    await createDoctorProfile(await getDatabase(), userId, displayName, consultationFee ?? 0);
+    return true;
+  });
+
+  ipcMain.handle('doctors:update-consultation-fee', async (_event, doctorId: number, consultationFee: number) => {
+    assertSignedIn();
+    await updateDoctorConsultationFee(await getDatabase(), doctorId, consultationFee);
     return true;
   });
 
@@ -654,8 +666,23 @@ function createWindow() {
     },
   });
 
+  const showFallback = setTimeout(() => {
+    if (win && !win.isDestroyed() && !win.isVisible()) {
+      win.show();
+    }
+  }, 1500);
+
   win.once('ready-to-show', () => {
-    win?.show();
+    clearTimeout(showFallback);
+    if (win && !win.isDestroyed() && !win.isVisible()) {
+      win.show();
+    }
+  });
+
+  win.webContents.on('did-finish-load', () => {
+    if (win && !win.isDestroyed() && !win.isVisible()) {
+      win.show();
+    }
   });
 
   win.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
@@ -664,15 +691,16 @@ function createWindow() {
       setTimeout(() => {
         if (win && !win.isDestroyed()) {
           win.loadURL(process.env.VITE_DEV_SERVER_URL!);
+          if (!win.isVisible()) {
+            win.show();
+          }
         }
       }, 500);
     }
   });
 
-  win.webContents.on('console-message', (event, _level, message, line, sourceId) => {
-    const msg = typeof event === 'object' && event && 'message' in event ? (event as any).message : message;
-    const src = typeof event === 'object' && event && 'sourceId' in event ? `${(event as any).sourceId}:${(event as any).lineNumber}` : `${sourceId}:${line}`;
-    console.log('[renderer console]', msg, src);
+  win.webContents.on('console-message', (event) => {
+    console.log('[renderer console]', event.message, `${event.sourceId}:${event.lineNumber}`);
   });
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -697,6 +725,22 @@ app.whenReady().then(() => {
   registerVisitTemplateHandlers();
   registerClinicalAlertHandlers();
   registerSettingsHandlers();
+
+  // Dev server needs 'unsafe-eval' + a websocket connect-src for Vite HMR, so only
+  // enforce a strict CSP once packaged (loadFile, no VITE_DEV_SERVER_URL).
+  if (!process.env.VITE_DEV_SERVER_URL) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self';",
+          ],
+        },
+      });
+    });
+  }
+
   createWindow();
   // Boot Postgres in parallel; IPC handlers await the shared startup promise as needed.
   void startDatabase();
@@ -716,3 +760,12 @@ app.on('before-quit', (event) => {
   isQuitting = true;
   void stopDatabase().finally(() => app.quit());
 });
+
+// Ctrl+C (dev mode) / `kill` send SIGINT or SIGTERM directly to this process; Electron
+// doesn't turn those into a 'before-quit' quit sequence on its own, so without this the
+// embedded Postgres process (and its port 5432) would be orphaned on every such exit.
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => {
+    app.quit();
+  });
+}

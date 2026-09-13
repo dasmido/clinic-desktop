@@ -35,8 +35,12 @@ router.beforeEach(async (to) => {
 
   const { currentUser, usersExist, hasUsers } = useAuth()
 
-  if (usersExist.value === null) {
-    await hasUsers()
+  try {
+    if (usersExist.value === null) {
+      await hasUsers()
+    }
+  } catch (error) {
+    console.error('[router] Failed checking user existence on startup:', error)
   }
 
   if (!usersExist.value) {

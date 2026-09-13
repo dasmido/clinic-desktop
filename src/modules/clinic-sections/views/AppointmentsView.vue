@@ -42,6 +42,13 @@ const calendarMonth = ref(new Date(`${selectedDate.value}T12:00:00`))
 const calendarVisits = ref<VisitWithPatient[]>([])
 const weekdayLabels = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت']
 
+const doctorOptions = computed(() =>
+  doctors.value.map((doctor) => ({
+    label: `د. ${doctor.display_name} (${doctor.consultation_fee ?? 0} ر.س)`,
+    value: String(doctor.id),
+  }))
+)
+
 const filteredVisits = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return visits.value
@@ -470,7 +477,7 @@ onMounted(async () => {
             <UFormField label="الطبيب المعالج">
               <USelect
                 v-model="form.doctorId"
-                :items="doctors.map((doctor) => ({ label: doctor.display_name, value: String(doctor.id) }))"
+                :items="doctorOptions"
                 placeholder="اختر الطبيب"
                 class="w-full"
               />

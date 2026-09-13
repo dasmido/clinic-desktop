@@ -4,6 +4,7 @@ import type {
   AppointmentStatus,
   Database,
 } from '../../src/database/types.js';
+import { createTransaction } from './finance.repository.js';
 
 function toTimestamp(value: Date | string): Date {
   const timestamp = value instanceof Date ? value : new Date(value);
@@ -19,6 +20,7 @@ export type AppointmentWithPatient = Appointment & {
   patient_name: string;
   patient_phone: string;
   doctor_name: string | null;
+  visit_fee: number;
 };
 
 export type CreateAppointmentInput = {
@@ -28,6 +30,7 @@ export type CreateAppointmentInput = {
   ends_at: Date | string;
   status?: AppointmentStatus;
   notes?: string;
+  visit_fee?: number;
 };
 
 export type UpdateAppointmentInput = {
@@ -37,6 +40,7 @@ export type UpdateAppointmentInput = {
   ends_at?: Date | string;
   status?: AppointmentStatus;
   notes?: string;
+  visit_fee?: number;
 };
 
 export type AppointmentFilters = {
@@ -72,14 +76,18 @@ export async function listAppointments(
     query = query.where('appointments.status', '=', filters.status);
   }
 
-  return query.execute();
+  const rows = await query.execute();
+  return rows.map((row) => ({
+    ...row,
+    visit_fee: Number(row.visit_fee ?? 0),
+  }));
 }
 
 export async function findAppointmentById(
   db: Kysely<Database>,
   appointmentId: number,
 ): Promise<AppointmentWithPatient | undefined> {
-  return db
+  const row = await db
     .selectFrom('appointments')
     .innerJoin('patients', 'patients.id', 'appointments.patient_id')
     .leftJoin('doctors', 'doctors.id', 'appointments.doctor_id')
@@ -91,6 +99,15 @@ export async function findAppointmentById(
     ])
     .where('appointments.id', '=', appointmentId)
     .executeTakeFirst();
+
+  if (!row) {
+    return undefined;
+  }
+
+  return {
+    ...row,
+    visit_fee: Number(row.visit_fee ?? 0),
+  };
 }
 
 export async function hasSchedulingConflict(
@@ -122,30 +139,71 @@ export async function createAppointment(
   db: Kysely<Database>,
   appointment: CreateAppointmentInput,
 ): Promise<Appointment> {
-  const startsAt = toTimestamp(appointment.starts_at);
-  const endsAt = toTimestamp(appointment.ends_at);
-  const status = appointment.status ?? 'scheduled';
+  return db.transaction().execute(async (trx) => {
+    const startsAt = toTimestamp(appointment.starts_at);
+    const endsAt = toTimestamp(appointment.ends_at);
+    const status = appointment.status ?? 'scheduled';
 
-  if (status !== 'cancelled') {
-    const hasConflict = await hasSchedulingConflict(db, appointment.doctor_id, startsAt, endsAt);
+    if (status !== 'cancelled') {
+      const hasConflict = await hasSchedulingConflict(trx, appointment.doctor_id, startsAt, endsAt);
 
-    if (hasConflict) {
-      throw new Error('يوجد موعد نشط خلال هذا الوقت.');
+      if (hasConflict) {
+        throw new Error('يوجد موعد نشط خلال هذا الوقت.');
+      }
     }
-  }
 
-  return db
-    .insertInto('appointments')
-    .values({
-      patient_id: appointment.patient_id,
-      doctor_id: appointment.doctor_id,
-      starts_at: startsAt,
-      ends_at: endsAt,
-      status,
-      notes: appointment.notes?.trim() ?? '',
-    })
-    .returningAll()
-    .executeTakeFirstOrThrow();
+    let visitFee = appointment.visit_fee;
+    let doctorName: string | undefined;
+
+    if (appointment.doctor_id) {
+      const doc = await trx
+        .selectFrom('doctors')
+        .select(['display_name', 'consultation_fee'])
+        .where('id', '=', appointment.doctor_id)
+        .executeTakeFirst();
+      if (doc) {
+        doctorName = doc.display_name;
+        if (visitFee === undefined) {
+          visitFee = Number(doc.consultation_fee ?? 0);
+        }
+      }
+    }
+
+    if (visitFee === undefined) {
+      visitFee = 0;
+    }
+
+    const created = await trx
+      .insertInto('appointments')
+      .values({
+        patient_id: appointment.patient_id,
+        doctor_id: appointment.doctor_id,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        status,
+        notes: appointment.notes?.trim() ?? '',
+        visit_fee: visitFee,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    if (visitFee > 0) {
+      const occurredOn = startsAt.toISOString().slice(0, 10);
+      await createTransaction(trx, {
+        transaction_type: 'income',
+        category: 'كشفية',
+        description: doctorName ? `كشفية طبيب: د. ${doctorName}` : 'كشفية موعد',
+        amount: visitFee,
+        occurred_on: occurredOn,
+        patient_id: appointment.patient_id,
+      });
+    }
+
+    return {
+      ...created,
+      visit_fee: Number(created.visit_fee ?? 0),
+    };
+  });
 }
 
 export async function updateAppointment(
@@ -180,7 +238,7 @@ export async function updateAppointment(
     }
   }
 
-  return db
+  const updated = await db
     .updateTable('appointments')
     .set({
       ...(appointment.patient_id === undefined ? {} : { patient_id: appointment.patient_id }),
@@ -189,11 +247,21 @@ export async function updateAppointment(
       ...(appointment.ends_at === undefined ? {} : { ends_at: endsAt }),
       ...(appointment.status === undefined ? {} : { status: appointment.status }),
       ...(appointment.notes === undefined ? {} : { notes: appointment.notes.trim() }),
+      ...(appointment.visit_fee === undefined ? {} : { visit_fee: appointment.visit_fee }),
       updated_at: new Date(),
     })
     .where('id', '=', appointmentId)
     .returningAll()
     .executeTakeFirst();
+
+  if (!updated) {
+    return undefined;
+  }
+
+  return {
+    ...updated,
+    visit_fee: Number(updated.visit_fee ?? 0),
+  };
 }
 
 export async function updateAppointmentStatus(

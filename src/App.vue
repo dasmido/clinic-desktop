@@ -12,12 +12,31 @@ const databaseReady = ref(false)
 const databaseError = ref('')
 const databaseLoading = ref(true)
 
+async function waitForElectronAPI(timeoutMs = 5000): Promise<boolean> {
+  const start = Date.now()
+  while (!window.electronAPI) {
+    if (Date.now() - start > timeoutMs) return false
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  return true
+}
+
 async function initializeDatabase() {
   databaseError.value = ''
   databaseLoading.value = true
 
   try {
-    await window.electronAPI.database.isReady()
+    const ready = await waitForElectronAPI()
+    if (!ready) {
+      throw new Error('تعذر الاتصال بـ Electron API. يرجى إعادة محاولة التشغيل.')
+    }
+
+    // The main process bounds its own Postgres startup with a timeout, but guard here too
+    // so a stuck IPC call can never leave the UI spinning forever on a blank screen.
+    const timeout = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('تعذر تجهيز قاعدة البيانات في الوقت المحدد. يرجى إعادة المحاولة.')), 45000)
+    })
+    await Promise.race([window.electronAPI.database.isReady(), timeout])
     databaseReady.value = true
   } catch (error) {
     databaseReady.value = false

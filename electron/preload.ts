@@ -33,7 +33,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 	},
 	doctors: {
 		list: () => ipcRenderer.invoke('doctors:list'),
-		createProfile: (userId: number, displayName: string) => ipcRenderer.invoke('doctors:create-profile', userId, displayName),
+		createProfile: (userId: number, displayName: string, consultationFee?: number) =>
+			ipcRenderer.invoke('doctors:create-profile', userId, displayName, consultationFee),
+		updateConsultationFee: (doctorId: number, consultationFee: number) =>
+			ipcRenderer.invoke('doctors:update-consultation-fee', doctorId, consultationFee),
 		delete: (doctorId: number) => ipcRenderer.invoke('doctors:delete', doctorId),
 		listAvailability: (doctorId: number) => ipcRenderer.invoke('doctors:list-availability', doctorId),
 		addAvailability: (doctorId: number, dayOfWeek: number, startsAt: string, endsAt: string) =>

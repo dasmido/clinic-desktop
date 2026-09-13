@@ -20,12 +20,14 @@ export type Appointment = {
   ends_at: string;
   status: AppointmentStatus;
   notes: string;
+  visit_fee: number;
 };
 
 export type Doctor = {
   id: number;
   user_id: number;
   display_name: string;
+  consultation_fee: number;
 };
 
 export type DoctorAvailability = {

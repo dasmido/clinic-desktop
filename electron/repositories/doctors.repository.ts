@@ -2,22 +2,40 @@ import { sql, type Kysely } from 'kysely';
 import type { Database, Doctor, DoctorAvailability } from '../../src/database/types.js';
 
 export async function listDoctors(db: Kysely<Database>): Promise<Doctor[]> {
-  return db
+  const rows = await db
     .selectFrom('doctors')
     .selectAll()
     .orderBy('display_name', 'asc')
     .execute();
+
+  return rows.map((row) => ({
+    ...row,
+    consultation_fee: Number(row.consultation_fee ?? 0),
+  }));
 }
 
 export async function createDoctorProfile(
   db: Kysely<Database>,
   userId: number,
   displayName: string,
+  consultationFee = 0,
 ) {
   return db
     .insertInto('doctors')
-    .values({ user_id: userId, display_name: displayName })
+    .values({ user_id: userId, display_name: displayName, consultation_fee: consultationFee })
     .onConflict((oc) => oc.column('user_id').doNothing())
+    .executeTakeFirst();
+}
+
+export async function updateDoctorConsultationFee(
+  db: Kysely<Database>,
+  doctorId: number,
+  consultationFee: number,
+) {
+  return db
+    .updateTable('doctors')
+    .set({ consultation_fee: consultationFee })
+    .where('id', '=', doctorId)
     .executeTakeFirst();
 }
 

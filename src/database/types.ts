@@ -32,6 +32,7 @@ export type AppointmentsTable = {
   ends_at: Timestamp;
   status: ColumnType<AppointmentStatus, AppointmentStatus | undefined, AppointmentStatus>;
   notes: ColumnType<string, string | undefined, string>;
+  visit_fee: ColumnType<number, number | undefined, number>;
   created_at: Timestamp;
   updated_at: Timestamp;
 };
@@ -40,6 +41,7 @@ export type DoctorsTable = {
   id: Generated<number>;
   user_id: number;
   display_name: string;
+  consultation_fee: ColumnType<number, number | undefined, number>;
   created_at: Timestamp;
 };
 

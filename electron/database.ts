@@ -12,6 +12,7 @@ import type { Database } from '../src/database/types.js';
 const APPLICATION_DATABASE = 'clinic_desktop';
 const require = createRequire(import.meta.url);
 const BIN_PERMISSIONS = 0o555;
+const PG_STARTUP_TIMEOUT_MS = 30_000;
 
 type PostgresInstance = {
   process: ChildProcessWithoutNullStreams | null;
@@ -113,28 +114,49 @@ async function databaseClusterExists() {
   }
 }
 
+// Bound how long any single connection attempt/query can block, so a stuck or
+// unresponsive Postgres process can never hang startup (and the renderer) forever.
+const PG_CONNECTION_TIMEOUT_MS = 15_000;
+const PG_QUERY_TIMEOUT_MS = 30_000;
+
 function createPgClient(database = 'postgres') {
   const { Client } = pg;
 
-  return new Client({
+  const client = new Client({
     database,
     host: 'localhost',
     password: 'password',
     port: 5432,
     user: 'postgres',
+    connectionTimeoutMillis: PG_CONNECTION_TIMEOUT_MS,
+    query_timeout: PG_QUERY_TIMEOUT_MS,
   });
+
+  // Without this, a backend-initiated disconnect (e.g. our own shutdown SIGINT) throws
+  // as an uncaught exception instead of just failing the in-flight query/call.
+  client.on('error', (error) => console.error('[database] client error', error));
+
+  return client;
 }
 
 function createPgPool() {
   const { Pool } = pg;
 
-  return new Pool({
+  const pool = new Pool({
     database: APPLICATION_DATABASE,
     host: 'localhost',
     password: 'password',
     port: 5432,
     user: 'postgres',
+    connectionTimeoutMillis: PG_CONNECTION_TIMEOUT_MS,
+    query_timeout: PG_QUERY_TIMEOUT_MS,
   });
+
+  // Idle pooled clients can be dropped by the backend (e.g. our own shutdown SIGINT);
+  // without this listener that surfaces as an uncaught exception and crashes the app.
+  pool.on('error', (error) => console.error('[database] pool error', error));
+
+  return pool;
 }
 
 async function initialiseDatabaseCluster() {
@@ -213,12 +235,24 @@ async function startPostgresProcess() {
     let stderrOutput = '';
     let settled = false;
 
+    // Without this, a postgres process that never prints the "ready" line and never
+    // exits (e.g. stuck on a stale lock file) would hang startDatabase() forever,
+    // deadlocking the renderer's database.isReady() call on a blank/loading screen.
+    const startupTimeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        childProcess.kill('SIGKILL');
+        reject(new Error(`Postgres did not signal readiness within ${PG_STARTUP_TIMEOUT_MS}ms. ${stderrOutput}`));
+      }
+    }, PG_STARTUP_TIMEOUT_MS);
+
     childProcess.stderr.on('data', (chunk) => {
       const message = chunk.toString('utf8');
       stderrOutput += message;
 
       if (!settled && message.includes('database system is ready to accept connections')) {
         settled = true;
+        clearTimeout(startupTimeout);
         resolve({ process: childProcess, ownsProcess: true });
       }
     });
@@ -226,6 +260,7 @@ async function startPostgresProcess() {
     childProcess.on('error', (error) => {
       if (!settled) {
         settled = true;
+        clearTimeout(startupTimeout);
         reject(error);
       }
     });
@@ -233,6 +268,7 @@ async function startPostgresProcess() {
     childProcess.on('close', (code, signal) => {
       if (!settled) {
         settled = true;
+        clearTimeout(startupTimeout);
         reject(new Error(`Postgres exited before startup (code: ${code ?? 'null'}, signal: ${signal ?? 'null'}). ${stderrOutput}`));
       }
     });
@@ -356,6 +392,25 @@ export async function getDatabase() {
   return db;
 }
 
+// Bounds how long we wait for a graceful (SIGINT) postgres shutdown before escalating
+// to SIGKILL, so closing the app can never hang/leave the port held forever.
+const PG_SHUTDOWN_TIMEOUT_MS = 5_000;
+
+async function waitForPidExit(pid: number, timeoutMs: number) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  return false;
+}
+
 export async function stopDatabase() {
   await startup?.catch(() => undefined);
   await db?.destroy();
@@ -371,25 +426,35 @@ export async function stopDatabase() {
 
   if (!instance.process && instance.pid) {
     process.kill(instance.pid, 'SIGINT');
-    await new Promise<void>((resolve) => {
-      const waitForExit = () => {
-        try {
-          process.kill(instance.pid!, 0);
-          setTimeout(waitForExit, 50);
-        } catch {
-          resolve();
-        }
-      };
-
-      waitForExit();
-    });
+    const exited = await waitForPidExit(instance.pid, PG_SHUTDOWN_TIMEOUT_MS);
+    if (!exited) {
+      try {
+        process.kill(instance.pid, 'SIGKILL');
+      } catch {
+        // Already gone.
+      }
+    }
     postgres = null;
     startup = null;
     return;
   }
 
   await new Promise<void>((resolve) => {
-    instance.process?.once('exit', () => resolve());
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    const killTimer = setTimeout(() => {
+      instance.process?.kill('SIGKILL');
+    }, PG_SHUTDOWN_TIMEOUT_MS);
+
+    instance.process?.once('exit', () => {
+      clearTimeout(killTimer);
+      finish();
+    });
     instance.process?.kill('SIGINT');
   });
 

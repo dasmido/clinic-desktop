@@ -1,5 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { Database, PatientMedicalRecord, PatientRecordAttachment } from '../../src/database/types.js';
+import { createTransaction } from './finance.repository.js';
 
 export type MedicalRecordWithAuthor = PatientMedicalRecord & { recorded_by_name: string | null; doctor_name: string | null };
 
@@ -88,11 +89,39 @@ export async function createMedicalRecord(
   db: Kysely<Database>,
   record: CreateMedicalRecordInput,
 ): Promise<PatientMedicalRecord> {
-  return db
-    .insertInto('patient_medical_records')
-    .values(record)
-    .returningAll()
-    .executeTakeFirstOrThrow();
+  return db.transaction().execute(async (trx) => {
+    const createdRecord = await trx
+      .insertInto('patient_medical_records')
+      .values(record)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    if (record.doctor_id) {
+      const doctor = await trx
+        .selectFrom('doctors')
+        .select(['display_name', 'consultation_fee'])
+        .where('id', '=', record.doctor_id)
+        .executeTakeFirst();
+
+      const fee = Number(doctor?.consultation_fee ?? 0);
+      if (fee > 0) {
+        const occurredOn = typeof record.visit_date === 'string'
+          ? record.visit_date.slice(0, 10)
+          : new Date(record.visit_date).toISOString().slice(0, 10);
+
+        await createTransaction(trx, {
+          transaction_type: 'income',
+          category: 'كشفية',
+          description: `كشفية طبيب: د. ${doctor?.display_name || ''}`.trim(),
+          amount: fee,
+          occurred_on: occurredOn,
+          patient_id: record.patient_id,
+        });
+      }
+    }
+
+    return createdRecord;
+  });
 }
 
 export async function updateMedicalRecord(

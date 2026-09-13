@@ -55,6 +55,7 @@ type AppointmentInput = {
   ends_at?: string;
   status?: AppointmentStatus;
   notes?: string;
+  visit_fee?: number;
 };
 
 type InventoryItemInput = {
@@ -175,7 +176,8 @@ declare global {
       };
       doctors: {
         list(): Promise<Doctor[]>;
-        createProfile(userId: number, displayName: string): Promise<boolean>;
+        createProfile(userId: number, displayName: string, consultationFee?: number): Promise<boolean>;
+        updateConsultationFee(doctorId: number, consultationFee: number): Promise<boolean>;
         delete(doctorId: number): Promise<boolean>;
         listAvailability(doctorId: number): Promise<DoctorAvailability[]>;
         addAvailability(doctorId: number, dayOfWeek: number, startsAt: string, endsAt: string): Promise<boolean>;
