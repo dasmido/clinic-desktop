@@ -4,6 +4,7 @@ import ClinicalWorkflowView from './views/ClinicalWorkflowView.vue'
 import FinanceView from './views/FinanceView.vue'
 import LabsView from './views/LabsView.vue'
 import PatientRecordsView from './views/PatientRecordsView.vue'
+import PatientCreateView from './views/PatientCreateView.vue'
 import PatientsView from './views/PatientsView.vue'
 import PrescriptionsView from './views/PrescriptionsView.vue'
 
@@ -11,6 +12,10 @@ export const clinicSectionRoutes: RouteRecordRaw[] = [
   {
     path: '/patients',
     component: PatientsView
+  },
+  {
+    path: '/patients/new',
+    component: PatientCreateView
   },
   {
     path: '/medical-records',

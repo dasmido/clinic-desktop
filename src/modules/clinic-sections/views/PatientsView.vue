@@ -1,29 +1,43 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import type { Patient } from '@/modules/clinic-data'
 
+const router = useRouter()
 const patients = ref<Patient[]>([])
-const search = ref('')
 const isLoading = ref(false)
 const isModalOpen = ref(false)
+const isFilterDrawerOpen = ref(false)
 const errorMessage = ref('')
 const editingPatient = ref<Patient | null>(null)
 const form = ref({ fullName: '', phone: '', dateOfBirth: '', notes: '' })
+const filters = ref({ name: '', phone: '' })
 
 const filteredPatients = computed(() => {
-  const phrase = search.value.trim().toLocaleLowerCase('ar')
-  if (!phrase) return patients.value
+  const name = filters.value.name.trim().toLocaleLowerCase('ar')
+  const phone = filters.value.phone.trim()
 
   return patients.value.filter((patient) =>
-    patient.full_name.toLocaleLowerCase('ar').includes(phrase) || patient.phone.includes(phrase),
+    (!name || patient.full_name.toLocaleLowerCase('ar').includes(name)) &&
+    (!phone || patient.phone.includes(phone)),
   )
 })
 
-function openCreateModal() {
-  editingPatient.value = null
-  form.value = { fullName: '', phone: '', dateOfBirth: '', notes: '' }
-  errorMessage.value = ''
-  isModalOpen.value = true
+const activeFilterCount = computed(() => Object.values(filters.value).filter((value) => value.trim()).length)
+
+function resetFilters() {
+  filters.value = { name: '', phone: '' }
+}
+
+function openDatePicker(event: MouseEvent) {
+  const input = event.target as HTMLInputElement
+  if (input.type === 'date' && typeof input.showPicker === 'function') {
+    input.showPicker()
+  }
+}
+
+function openCreatePage() {
+  void router.push('/patients/new')
 }
 
 function openEditModal(patient: Patient) {
@@ -61,11 +75,8 @@ async function savePatient() {
   errorMessage.value = ''
   try {
     const input = { full_name: fullName, phone, date_of_birth: form.value.dateOfBirth || null, notes: form.value.notes.trim() }
-    if (editingPatient.value) {
-      await window.electronAPI.patients.update(editingPatient.value.id, input)
-    } else {
-      await window.electronAPI.patients.create(input)
-    }
+    if (!editingPatient.value) return
+    await window.electronAPI.patients.update(editingPatient.value.id, input)
     isModalOpen.value = false
     await loadPatients()
   } catch (error) {
@@ -98,21 +109,24 @@ onMounted(loadPatients)
 
 <template>
   <section class="mx-auto w-full max-w-6xl space-y-6">
-    <header class="flex flex-col gap-4 border-b border-default pb-5 sm:flex-row sm:items-end sm:justify-between">
+    <header class="flex flex-col gap-4 pb-2 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p class="text-sm font-medium text-primary">سجل العيادة</p>
         <h1 class="mt-1 text-2xl font-bold text-highlighted">المراجعين</h1>
         <p class="mt-1 text-sm text-muted">إدارة بيانات الاتصال والسجل الأساسي للمراجعين.</p>
       </div>
-      <UButton icon="i-lucide-user-round-plus" label="مراجع جديد" @click="openCreateModal" />
+      <div class="flex flex-wrap gap-2">
+        <UButton icon="i-lucide-sliders-horizontal" color="neutral" variant="outline" label="بحث متقدم" :trailing-icon="activeFilterCount ? 'i-lucide-circle-check' : undefined" @click="isFilterDrawerOpen = true" />
+        <UButton icon="i-lucide-user-round-plus" label="مراجع جديد" @click="openCreatePage" />
+      </div>
     </header>
 
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <UInput v-model="search" icon="i-lucide-search" placeholder="ابحث بالاسم أو رقم الهاتف" class="w-full sm:max-w-sm" />
+      <p class="text-sm text-muted">{{ activeFilterCount ? `${activeFilterCount} فلاتر مفعلة` : 'استخدم البحث المتقدم لتصفية السجلات' }}</p>
       <p class="text-sm text-muted">{{ filteredPatients.length }} مراجع</p>
     </div>
 
-    <div class="overflow-hidden border border-default bg-default shadow-sm">
+    <div class="overflow-hidden border-[0.5px] border-default bg-default shadow-sm">
       <div v-if="isLoading && !patients.length" class="flex min-h-56 items-center justify-center text-muted">
         <UIcon name="i-lucide-loader-circle" class="size-5 animate-spin" />
       </div>
@@ -122,7 +136,7 @@ onMounted(loadPatients)
         <p class="text-sm text-muted">أضف أول مراجع لبدء تنظيم مواعيد العيادة.</p>
       </div>
       <div v-else class="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <article v-for="patient in filteredPatients" :key="patient.id" class="flex min-w-0 flex-col border border-default bg-default p-4 transition-shadow hover:shadow-md">
+        <article v-for="patient in filteredPatients" :key="patient.id" class="flex min-w-0 flex-col border-[0.5px] border-default bg-default p-4 transition-shadow hover:shadow-md">
           <div class="mt-2 flex justify-center">
             <UAvatar icon="i-lucide-user-round" size="xl" color="primary" variant="soft" :alt="patient.full_name" />
           </div>
@@ -134,7 +148,7 @@ onMounted(loadPatients)
               <UButton icon="i-lucide-trash-2" color="error" variant="ghost" size="sm" aria-label="حذف المراجع" :loading="isLoading" @click="deletePatientFromCard(patient)" />
             </div>
           </div>
-          <dl class="mt-4 space-y-2 border-t border-default pt-3 text-sm">
+          <dl class="mt-4 space-y-2 pt-3 text-sm">
             <div class="flex items-center justify-between gap-2">
               <dt class="text-muted">الميلاد</dt>
               <dd class="truncate text-highlighted">{{ patient.date_of_birth || '—' }}</dd>
@@ -149,15 +163,48 @@ onMounted(loadPatients)
       </div>
     </div>
 
-    <UModal v-model:open="isModalOpen" :title="editingPatient ? 'تعديل بيانات المراجع' : 'مراجع جديد'">
+    <UDrawer v-model:open="isFilterDrawerOpen" direction="bottom" title="بحث متقدم">
+      <template #content>
+        <div class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <UFormField label="اسم المراجع" :ui="{ label: 'inline-flex items-center gap-2' }">
+              <template #label><UIcon name="i-lucide-user-round" class="size-4" /><span>اسم المراجع</span></template>
+              <UInput v-model="filters.name" placeholder="الاسم الكامل" class="h-11 w-full rounded-none" />
+            </UFormField>
+            <UFormField label="رقم الهاتف" :ui="{ label: 'inline-flex items-center gap-2' }">
+              <template #label><UIcon name="i-lucide-phone" class="size-4" /><span>رقم الهاتف</span></template>
+              <UInput v-model="filters.phone" placeholder="رقم الهاتف" class="h-11 w-full rounded-none" dir="ltr" />
+            </UFormField>
+          </div>
+          <div class="mt-5 flex flex-wrap justify-end gap-2 pt-4">
+            <UButton color="neutral" variant="ghost" label="مسح الفلاتر" :disabled="!activeFilterCount" @click="resetFilters" />
+            <UButton icon="i-lucide-check" label="عرض النتائج" @click="isFilterDrawerOpen = false" />
+          </div>
+        </div>
+      </template>
+    </UDrawer>
+
+    <UModal v-model:open="isModalOpen" title="تعديل بيانات المراجع">
       <template #body>
         <form class="space-y-4" @submit.prevent="savePatient">
-          <UFormField label="الاسم الكامل" required><UInput v-model="form.fullName" class="w-full" autofocus /></UFormField>
-          <UFormField label="رقم الهاتف" required><UInput v-model="form.phone" class="w-full" dir="ltr" /></UFormField>
-          <UFormField label="تاريخ الميلاد"><UInput v-model="form.dateOfBirth" type="date" class="w-full" /></UFormField>
-          <UFormField label="ملاحظات"><UTextarea v-model="form.notes" class="w-full" :rows="3" /></UFormField>
+          <UFormField label="الاسم الكامل" required :ui="{ label: 'inline-flex items-center gap-2' }">
+            <template #label><UIcon name="i-lucide-user-round" class="size-4" /><span>الاسم الكامل</span></template>
+            <UInput v-model="form.fullName" class="h-11 w-full rounded-none" autofocus />
+          </UFormField>
+          <UFormField label="رقم الهاتف" required :ui="{ label: 'inline-flex items-center gap-2' }">
+            <template #label><UIcon name="i-lucide-phone" class="size-4" /><span>رقم الهاتف</span></template>
+            <UInput v-model="form.phone" class="h-11 w-full rounded-none" dir="ltr" />
+          </UFormField>
+          <UFormField label="تاريخ الميلاد" :ui="{ label: 'inline-flex items-center gap-2' }">
+            <template #label><UIcon name="i-lucide-calendar-days" class="size-4" /><span>تاريخ الميلاد</span></template>
+            <UInput v-model="form.dateOfBirth" type="date" class="h-11 w-full rounded-none" @click="openDatePicker" />
+          </UFormField>
+          <UFormField label="ملاحظات" :ui="{ label: 'inline-flex items-center gap-2' }">
+            <template #label><UIcon name="i-lucide-notebook-text" class="size-4" /><span>ملاحظات</span></template>
+            <UTextarea v-model="form.notes" class="min-h-28 w-full rounded-none" :rows="3" />
+          </UFormField>
           <p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p>
-          <div class="flex justify-between gap-2 pt-2"><UButton v-if="editingPatient" icon="i-lucide-trash-2" color="error" variant="ghost" aria-label="حذف المراجع" :loading="isLoading" @click="deletePatient()" /><span class="flex gap-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isModalOpen = false" /><UButton type="submit" :loading="isLoading" :label="editingPatient ? 'حفظ التعديلات' : 'إضافة المراجع'" /></span></div>
+          <div class="flex justify-between gap-2 pt-2"><UButton icon="i-lucide-trash-2" color="error" variant="ghost" aria-label="حذف المراجع" :loading="isLoading" @click="deletePatient()" /><span class="flex gap-2"><UButton icon="i-lucide-x" color="neutral" variant="ghost" label="إلغاء" @click="isModalOpen = false" /><UButton type="submit" :loading="isLoading" label="حفظ" /></span></div>
         </form>
       </template>
     </UModal>

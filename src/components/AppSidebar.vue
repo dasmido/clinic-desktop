@@ -135,7 +135,7 @@ const userItems = computed<DropdownMenuItem[][]>(() => [
     collapsible="icon"
     rail
     :ui="{
-      container: 'h-full',
+      container: 'h-full z-auto',
       inner: 'bg-elevated/25 divide-transparent',
       body: 'py-0'
     }"
