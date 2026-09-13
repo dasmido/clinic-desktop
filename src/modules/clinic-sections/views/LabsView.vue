@@ -7,11 +7,13 @@ const { currentUser } = useAuth()
 const patients = ref<Patient[]>([])
 const records = ref<MedicalRecord[]>([])
 const orders = ref<LabOrder[]>([])
+const closedOrders = ref<LabOrder[]>([])
 const results = ref<LabResult[]>([])
 const inventoryItems = ref<InventoryItem[]>([])
 const selectedOrderId = ref<number | null>(null)
 const selectedOrder = ref<LabOrder | null>(null)
 const search = ref('')
+const statusFilter = ref<'all' | 'open' | 'closed'>('all')
 const patientId = ref('')
 const recordId = ref('')
 const isOrderModalOpen = ref(false)
@@ -29,9 +31,10 @@ const canChangeStatus = computed(() => role.value === 'doctor' || role.value ===
 const canDelete = computed(() => role.value === 'doctor' || role.value === 'admin')
 
 const filteredOrders = computed(() => {
+  const combined = statusFilter.value === 'open' ? orders.value : statusFilter.value === 'closed' ? closedOrders.value : [...orders.value, ...closedOrders.value]
   const phrase = search.value.trim().toLocaleLowerCase('ar')
-  if (!phrase) return orders.value
-  return orders.value.filter((order) =>
+  if (!phrase) return combined
+  return combined.filter((order) =>
     [order.patient_name, order.test_name, order.ordered_by_name].some((value) => value.toLocaleLowerCase('ar').includes(phrase)),
   )
 })
@@ -56,8 +59,14 @@ function statusLabel(order: LabOrder) {
 }
 
 async function loadOrders() {
-  orders.value = await window.electronAPI.labs.listOpenOrders()
-  if (selectedOrderId.value && !orders.value.some((order) => order.id === selectedOrderId.value)) {
+  const [openOrders, recentlyClosed] = await Promise.all([
+    window.electronAPI.labs.listOpenOrders(),
+    window.electronAPI.labs.listClosedOrders(50),
+  ])
+  orders.value = openOrders
+  closedOrders.value = recentlyClosed
+  const stillVisible = new Set([...openOrders, ...recentlyClosed].map((order) => order.id))
+  if (selectedOrderId.value && !stillVisible.has(selectedOrderId.value)) {
     selectedOrderId.value = null
     selectedOrder.value = null
     results.value = []
@@ -157,12 +166,12 @@ async function createResult() {
       interpretation: resultForm.value.interpretation,
       notes: resultForm.value.notes.trim(),
     })
-    orders.value = orders.value.filter((order) => order.id !== orderId)
     selectedOrderId.value = null
     selectedOrder.value = null
     results.value = []
     uploadedFileCount.value = 0
     resultForm.value = { testName: '', value: '', referenceRange: '', interpretation: '', notes: '' }
+    await refresh()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر تسجيل نتيجة الفحص.'
   } finally {
@@ -226,14 +235,18 @@ onMounted(async () => {
 
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <UInput v-model="search" icon="i-lucide-search" placeholder="ابحث باسم المراجع أو الفحص" class="w-full sm:max-w-sm" />
-      <div class="flex items-center gap-3 text-sm text-muted"><UBadge :label="String(filteredOrders.length)" color="warning" variant="subtle" /> طلب مفتوح</div>
+      <div class="flex items-center gap-2 text-sm">
+        <button type="button" class="border px-3 py-1.5 transition-colors" :class="statusFilter === 'all' ? 'border-primary bg-primary/10 text-primary' : 'border-default text-muted hover:text-highlighted'" @click="statusFilter = 'all'">الكل</button>
+        <button type="button" class="border px-3 py-1.5 transition-colors" :class="statusFilter === 'open' ? 'border-primary bg-primary/10 text-primary' : 'border-default text-muted hover:text-highlighted'" @click="statusFilter = 'open'">مفتوح <UBadge :label="String(orders.length)" color="warning" variant="subtle" class="ms-1" /></button>
+        <button type="button" class="border px-3 py-1.5 transition-colors" :class="statusFilter === 'closed' ? 'border-primary bg-primary/10 text-primary' : 'border-default text-muted hover:text-highlighted'" @click="statusFilter = 'closed'">مغلق <UBadge :label="String(closedOrders.length)" color="neutral" variant="subtle" class="ms-1" /></button>
+      </div>
     </div>
 
     <p v-if="errorMessage" class="border border-error/30 bg-error/5 p-3 text-sm text-error">{{ errorMessage }}</p>
     <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
       <section class="overflow-hidden border border-default bg-default shadow-sm">
-        <div v-if="isLoading && !orders.length" class="flex min-h-56 items-center justify-center text-muted"><UIcon name="i-lucide-loader-circle" class="size-5 animate-spin" /></div>
-        <div v-else-if="!filteredOrders.length" class="flex min-h-56 flex-col items-center justify-center gap-2 p-6 text-center"><UIcon name="i-lucide-flask-conical" class="size-8 text-dimmed" /><p class="font-medium text-highlighted">لا توجد طلبات مفتوحة</p><p class="text-sm text-muted">ستظهر هنا الفحوصات التي تنتظر تسجيل نتيجتها.</p></div>
+        <div v-if="isLoading && !orders.length && !closedOrders.length" class="flex min-h-56 items-center justify-center text-muted"><UIcon name="i-lucide-loader-circle" class="size-5 animate-spin" /></div>
+        <div v-else-if="!filteredOrders.length" class="flex min-h-56 flex-col items-center justify-center gap-2 p-6 text-center"><UIcon name="i-lucide-flask-conical" class="size-8 text-dimmed" /><p class="font-medium text-highlighted">لا توجد طلبات فحص</p><p class="text-sm text-muted">ستظهر هنا طلبات المختبر المفتوحة والمغلقة.</p></div>
         <div v-else class="divide-y divide-default">
           <button v-for="order in filteredOrders" :key="order.id" type="button" class="w-full p-4 text-right transition-colors hover:bg-elevated" :class="selectedOrderId === order.id ? 'bg-elevated' : ''" @click="selectOrder(order)">
             <div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="truncate font-semibold text-highlighted">{{ order.test_name }}</p><p class="mt-1 truncate text-sm text-toned">{{ order.patient_name }}</p></div><UBadge :label="order.urgency === 'urgent' ? 'عاجل' : 'روتيني'" :color="order.urgency === 'urgent' ? 'error' : 'neutral'" variant="subtle" /></div>

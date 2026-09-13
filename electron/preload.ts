@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 	labs: {
 		listByPatient: (patientId: number) => ipcRenderer.invoke('labs:list-by-patient', patientId),
 		listOpenOrders: () => ipcRenderer.invoke('labs:list-open-orders'),
+		listClosedOrders: (limit?: number) => ipcRenderer.invoke('labs:list-closed-orders', limit),
 		listResultsByOrder: (orderId: number) => ipcRenderer.invoke('labs:list-results-by-order', orderId),
 		createOrder: (input: unknown) => ipcRenderer.invoke('labs:create-order', input),
 		createResult: (orderId: number, input: unknown) => ipcRenderer.invoke('labs:create-result', orderId, input),

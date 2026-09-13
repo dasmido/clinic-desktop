@@ -215,6 +215,7 @@ declare global {
       labs: {
         listByPatient(patientId: number): Promise<LabOrder[]>;
         listOpenOrders(): Promise<LabOrder[]>;
+        listClosedOrders(limit?: number): Promise<LabOrder[]>;
         listResultsByOrder(orderId: number): Promise<LabResult[]>;
         createOrder(input: LabOrderInput): Promise<LabOrder>;
         createResult(orderId: number, input: LabResultInput): Promise<LabResult>;

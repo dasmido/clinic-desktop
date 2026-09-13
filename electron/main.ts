@@ -84,6 +84,7 @@ import {
   deleteLabOrder,
   listLabOrdersByPatient,
   listLabResultsByOrder,
+  listClosedLabOrders,
   listOpenLabOrders,
   updateLabOrderStatus,
   type CreateLabOrderInput,
@@ -412,6 +413,11 @@ function registerLabHandlers() {
   ipcMain.handle('labs:list-open-orders', async () => {
     assertUserHasRole(['doctor', 'nurse', 'lab', 'admin']);
     return listOpenLabOrders(await getDatabase());
+  });
+
+  ipcMain.handle('labs:list-closed-orders', async (_event, limit?: number) => {
+    assertUserHasRole(['doctor', 'nurse', 'lab', 'admin']);
+    return listClosedLabOrders(await getDatabase(), limit);
   });
 
   ipcMain.handle('labs:list-results-by-order', async (_event, orderId: number) => {

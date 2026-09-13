@@ -53,6 +53,20 @@ export async function listOpenLabOrders(db: Kysely<Database>): Promise<LabOrderW
     .execute();
 }
 
+export async function listClosedLabOrders(db: Kysely<Database>, limit = 50): Promise<LabOrderWithDetails[]> {
+  return db
+    .selectFrom('lab_orders')
+    .innerJoin('users', 'users.id', 'lab_orders.ordered_by_user_id')
+    .innerJoin('patients', 'patients.id', 'lab_orders.patient_id')
+    .leftJoin('inventory_items', 'inventory_items.id', 'lab_orders.inventory_item_id')
+    .selectAll('lab_orders')
+    .select(['users.username as ordered_by_name', 'patients.full_name as patient_name', 'inventory_items.name as inventory_item_name'])
+    .where('lab_orders.result_status', 'in', ['resulted', 'cancelled'])
+    .orderBy('lab_orders.ordered_on', 'desc')
+    .limit(limit)
+    .execute();
+}
+
 export async function listLabResultsByOrder(db: Kysely<Database>, orderId: number): Promise<LabResultWithRecorder[]> {
   return db
     .selectFrom('lab_results')
