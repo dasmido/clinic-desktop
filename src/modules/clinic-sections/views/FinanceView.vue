@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import type { FinanceSummary, FinancialTransaction, FinancialTransactionType, InventoryItem } from '@/modules/clinic-data'
+import { useRouter } from 'vue-router'
+import type { FinanceSummary, FinancialTransaction, InventoryItem } from '@/modules/clinic-data'
 import { useAppSettings } from '@/modules/settings/composables/useAppSettings'
 
 const { settings, loadSettings } = useAppSettings()
+const router = useRouter()
 const activeView = ref<'finance' | 'inventory'>('finance')
 const transactions = ref<FinancialTransaction[]>([])
 const inventoryItems = ref<InventoryItem[]>([])
 const summary = ref<FinanceSummary>({ income: '0', expenses: '0' })
 const isLoading = ref(false)
 const errorMessage = ref('')
-const isTransactionModalOpen = ref(false)
 const isItemModalOpen = ref(false)
 const isAdjustmentModalOpen = ref(false)
 const editingItem = ref<InventoryItem | null>(null)
 const adjustmentItem = ref<InventoryItem | null>(null)
-const transactionForm = ref({ type: 'income' as FinancialTransactionType, category: '', description: '', amount: '', occurredOn: new Date().toISOString().slice(0, 10) })
 const itemForm = ref({ name: '', sku: '', unit: 'قطعة', quantity: '', reorderLevel: '', unitCost: '' })
 const adjustmentForm = ref({ quantityChange: '', reason: 'توريد', notes: '' })
 
@@ -60,12 +60,14 @@ async function loadData() {
 }
 
 function openTransactionModal() {
-  transactionForm.value = { type: 'income', category: '', description: '', amount: '', occurredOn: new Date().toISOString().slice(0, 10) }
-  errorMessage.value = ''
-  isTransactionModalOpen.value = true
+  void router.push('/finance/transactions/new')
 }
 
 function openItemModal(item?: InventoryItem) {
+  if (!item) {
+    void router.push('/finance/inventory/new')
+    return
+  }
   editingItem.value = item ?? null
   itemForm.value = item
     ? { name: item.name, sku: item.sku ?? '', unit: item.unit, quantity: '', reorderLevel: item.reorder_level, unitCost: item.unit_cost }
@@ -81,33 +83,9 @@ function openAdjustmentModal(item: InventoryItem) {
   isAdjustmentModalOpen.value = true
 }
 
-async function saveTransaction() {
-  const form = transactionForm.value
-  if (!form.category.trim() || !form.description.trim() || Number(form.amount) <= 0 || !form.occurredOn) {
-    errorMessage.value = 'أدخل التصنيف والوصف والمبلغ وتاريخ العملية.'
-    return
-  }
-  isLoading.value = true
-  try {
-    await window.electronAPI.finance.createTransaction({
-      transaction_type: form.type,
-      category: form.category.trim(),
-      description: form.description.trim(),
-      amount: Number(form.amount),
-      occurred_on: form.occurredOn,
-    })
-    isTransactionModalOpen.value = false
-    await loadData()
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'تعذر حفظ العملية المالية.'
-  } finally {
-    isLoading.value = false
-  }
-}
-
 async function saveItem() {
   const form = itemForm.value
-  if (!form.name.trim() || !form.unit.trim() || Number(form.reorderLevel || 0) < 0 || Number(form.unitCost || 0) < 0 || Number(form.quantity || 0) < 0) {
+  if (!form.name.trim() || !form.unit.trim() || Number(form.reorderLevel || 0) < 0 || Number(form.unitCost || 0) < 0) {
     errorMessage.value = 'أدخل اسم الصنف ووحدة القياس والكميات بقيم صحيحة.'
     return
   }
@@ -118,15 +96,6 @@ async function saveItem() {
         name: form.name.trim(),
         sku: form.sku.trim() || null,
         unit: form.unit.trim(),
-        reorder_level: Number(form.reorderLevel || 0),
-        unit_cost: Number(form.unitCost || 0),
-      })
-    } else {
-      await window.electronAPI.inventory.createItem({
-        name: form.name.trim(),
-        sku: form.sku.trim() || null,
-        unit: form.unit.trim(),
-        quantity: Number(form.quantity || 0),
         reorder_level: Number(form.reorderLevel || 0),
         unit_cost: Number(form.unitCost || 0),
       })
@@ -209,10 +178,9 @@ onMounted(async () => {
       <div v-if="lowStockItems.length" class="border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200"><span class="font-semibold">تنبيه مخزون:</span> {{ lowStockItems.map((item) => item.name).join('، ') }} وصل إلى حد إعادة الطلب أو أقل.</div>
       <div class="overflow-hidden border border-default bg-default shadow-sm"><div v-if="isLoading" class="flex min-h-56 items-center justify-center"><UIcon name="i-lucide-loader-circle" class="size-5 animate-spin text-muted" /></div><div v-else-if="!inventoryItems.length" class="flex min-h-56 flex-col items-center justify-center gap-2 p-6 text-center"><UIcon name="i-lucide-package-search" class="size-8 text-dimmed" /><p class="font-medium text-highlighted">لا توجد أصناف مخزون</p><UButton class="mt-2" icon="i-lucide-package-plus" label="إضافة أول صنف" @click="openItemModal()" /></div><div v-else class="overflow-x-auto"><table class="w-full min-w-180 text-right text-sm"><thead class="border-b border-default bg-elevated/55 text-xs font-medium text-muted"><tr><th class="px-5 py-3">الصنف</th><th class="px-5 py-3">المتاح</th><th class="px-5 py-3">حد الطلب</th><th class="px-5 py-3">تكلفة الوحدة</th><th class="w-36 px-3 py-3"></th></tr></thead><tbody class="divide-y divide-default"><tr v-for="item in inventoryItems" :key="item.id" class="transition-colors hover:bg-elevated/35"><td class="px-5 py-4"><p class="font-semibold text-highlighted">{{ item.name }}</p><p v-if="item.sku" class="mt-0.5 text-xs text-muted" dir="ltr">{{ item.sku }}</p></td><td class="px-5 py-4 font-semibold" :class="Number(item.quantity) <= Number(item.reorder_level) ? 'text-amber-700 dark:text-amber-300' : 'text-highlighted'">{{ number(item.quantity) }} {{ item.unit }}</td><td class="px-5 py-4 text-muted">{{ number(item.reorder_level) }} {{ item.unit }}</td><td class="px-5 py-4 text-muted">{{ money(item.unit_cost) }}</td><td class="px-3 py-3"><div class="flex gap-1"><UButton icon="i-lucide-arrow-left-right" color="neutral" variant="ghost" aria-label="تسجيل حركة مخزون" @click="openAdjustmentModal(item)" /><UButton icon="i-lucide-pencil" color="neutral" variant="ghost" aria-label="تعديل الصنف" @click="openItemModal(item)" /><UButton icon="i-lucide-trash-2" color="error" variant="ghost" aria-label="حذف الصنف" @click="deleteItem(item)" /></div></td></tr></tbody></table></div></div>
     </template>
-    <p v-if="errorMessage && !isTransactionModalOpen && !isItemModalOpen && !isAdjustmentModalOpen" class="text-sm text-error">{{ errorMessage }}</p>
+    <p v-if="errorMessage && !isItemModalOpen && !isAdjustmentModalOpen" class="text-sm text-error">{{ errorMessage }}</p>
 
-    <UModal v-model:open="isTransactionModalOpen" title="تسجيل عملية مالية"><template #body><form class="space-y-4" @submit.prevent="saveTransaction"><UFormField label="نوع العملية"><USelect v-model="transactionForm.type" :items="[{ label: 'إيراد', value: 'income' }, { label: 'مصروف', value: 'expense' }]" class="w-full" /></UFormField><UFormField label="التصنيف" required><UInput v-model="transactionForm.category" placeholder="مثل: كشف، رواتب، مستلزمات" class="w-full" autofocus /></UFormField><UFormField label="الوصف" required><UInput v-model="transactionForm.description" class="w-full" /></UFormField><div class="grid gap-4 sm:grid-cols-2"><UFormField label="المبلغ (د.ع)" required><UInput v-model="transactionForm.amount" type="number" min="0.01" step="0.01" class="w-full" /></UFormField><UFormField label="التاريخ" required><UInput v-model="transactionForm.occurredOn" type="date" class="w-full" /></UFormField></div><p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p><div class="flex justify-end gap-2 pt-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isTransactionModalOpen = false" /><UButton type="submit" :loading="isLoading" label="تسجيل العملية" /></div></form></template></UModal>
-    <UModal v-model:open="isItemModalOpen" :title="editingItem ? 'تعديل صنف المخزون' : 'صنف مخزون جديد'"><template #body><form class="space-y-4" @submit.prevent="saveItem"><UFormField label="اسم الصنف" required><UInput v-model="itemForm.name" class="w-full" autofocus /></UFormField><div class="grid gap-4 sm:grid-cols-2"><UFormField label="رمز الصنف"><UInput v-model="itemForm.sku" class="w-full" dir="ltr" /></UFormField><UFormField label="وحدة القياس" required><UInput v-model="itemForm.unit" class="w-full" /></UFormField></div><div class="grid gap-4 sm:grid-cols-3"><UFormField v-if="!editingItem" label="الكمية الافتتاحية"><UInput v-model="itemForm.quantity" type="number" min="0" step="0.01" class="w-full" /></UFormField><UFormField label="حد إعادة الطلب"><UInput v-model="itemForm.reorderLevel" type="number" min="0" step="0.01" class="w-full" /></UFormField><UFormField label="تكلفة الوحدة (د.ع)"><UInput v-model="itemForm.unitCost" type="number" min="0" step="0.01" class="w-full" /></UFormField></div><p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p><div class="flex justify-end gap-2 pt-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isItemModalOpen = false" /><UButton type="submit" :loading="isLoading" :label="editingItem ? 'حفظ التعديلات' : 'إضافة الصنف'" /></div></form></template></UModal>
+    <UModal v-if="editingItem" v-model:open="isItemModalOpen" title="تعديل صنف المخزون"><template #body><form class="space-y-4" @submit.prevent="saveItem"><UFormField label="اسم الصنف" required><UInput v-model="itemForm.name" class="w-full" autofocus /></UFormField><div class="grid gap-4 sm:grid-cols-2"><UFormField label="رمز الصنف"><UInput v-model="itemForm.sku" class="w-full" dir="ltr" /></UFormField><UFormField label="وحدة القياس" required><UInput v-model="itemForm.unit" class="w-full" /></UFormField></div><div class="grid gap-4 sm:grid-cols-2"><UFormField label="حد إعادة الطلب"><UInput v-model="itemForm.reorderLevel" type="number" min="0" step="0.01" class="w-full" /></UFormField><UFormField label="تكلفة الوحدة (د.ع)"><UInput v-model="itemForm.unitCost" type="number" min="0" step="0.01" class="w-full" /></UFormField></div><p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p><div class="flex justify-end gap-2 pt-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isItemModalOpen = false" /><UButton type="submit" :loading="isLoading" label="حفظ التعديلات" /></div></form></template></UModal>
     <UModal v-model:open="isAdjustmentModalOpen" :title="adjustmentItem ? `حركة مخزون: ${adjustmentItem.name}` : 'حركة مخزون'"><template #body><form class="space-y-4" @submit.prevent="saveAdjustment"><p v-if="adjustmentItem" class="text-sm text-muted">المتاح حالياً: {{ number(adjustmentItem.quantity) }} {{ adjustmentItem.unit }}</p><UFormField label="تغير الكمية" required><UInput v-model="adjustmentForm.quantityChange" type="number" step="0.01" placeholder="موجب للتوريد، سالب للصرف" class="w-full" autofocus /></UFormField><UFormField label="سبب الحركة"><UInput v-model="adjustmentForm.reason" placeholder="مثل: توريد، استخدام، تلف" class="w-full" /></UFormField><UFormField label="ملاحظات"><UTextarea v-model="adjustmentForm.notes" class="w-full" :rows="2" /></UFormField><p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p><div class="flex justify-end gap-2 pt-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isAdjustmentModalOpen = false" /><UButton type="submit" :loading="isLoading" label="تسجيل الحركة" /></div></form></template></UModal>
   </section>
 </template>

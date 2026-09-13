@@ -1,27 +1,23 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuth } from '@/modules/auth'
-import type { InventoryItem, LabOrder, LabResult, LabResultInterpretation, MedicalRecord, Patient } from '@/modules/clinic-data'
+import type { LabOrder, LabResult, LabResultInterpretation, Patient } from '@/modules/clinic-data'
 
 const { currentUser } = useAuth()
+const router = useRouter()
 const patients = ref<Patient[]>([])
-const records = ref<MedicalRecord[]>([])
 const orders = ref<LabOrder[]>([])
 const closedOrders = ref<LabOrder[]>([])
 const results = ref<LabResult[]>([])
-const inventoryItems = ref<InventoryItem[]>([])
 const selectedOrderId = ref<number | null>(null)
 const selectedOrder = ref<LabOrder | null>(null)
 const search = ref('')
 const statusFilter = ref<'all' | 'open' | 'closed'>('all')
-const patientId = ref('')
-const recordId = ref('')
-const isOrderModalOpen = ref(false)
 const isLoading = ref(false)
 const errorMessage = ref('')
 const uploadedFileCount = ref(0)
 
-const orderForm = ref({ testName: '', urgency: 'routine' as 'routine' | 'urgent', indication: '', inventoryItemId: 'none' })
 const resultForm = ref({ testName: '', value: '', referenceRange: '', interpretation: '' as LabResultInterpretation, notes: '' })
 
 const role = computed(() => currentUser.value?.role)
@@ -39,12 +35,6 @@ const filteredOrders = computed(() => {
   )
 })
 
-const patientItems = computed(() => patients.value.map((patient) => ({ label: `${patient.full_name} - ${patient.phone}`, value: String(patient.id) })))
-const recordItems = computed(() => records.value.map((record) => ({ label: `${formatDate(record.visit_date)}${record.diagnosis ? ` - ${record.diagnosis}` : ''}`, value: String(record.id) })))
-const inventoryItemItems = computed(() => [
-  { label: 'بدون ربط بالمخزون', value: 'none' },
-  ...inventoryItems.value.map((item) => ({ label: `${item.name} (${item.quantity} ${item.unit} متاح)`, value: String(item.id) })),
-])
 const interpretationValue = computed<string>({
   get: () => resultForm.value.interpretation || 'none',
   set: (value) => { resultForm.value.interpretation = (value === 'none' ? '' : value) as LabResultInterpretation },
@@ -103,11 +93,6 @@ async function uploadResultFile() {
   }
 }
 
-async function loadRecords() {
-  records.value = patientId.value ? (await window.electronAPI.medicalRecords.listByPatient(Number(patientId.value))).records : []
-  if (!records.value.some((record) => String(record.id) === recordId.value)) recordId.value = ''
-}
-
 async function refresh() {
   isLoading.value = true
   errorMessage.value = ''
@@ -122,34 +107,7 @@ async function refresh() {
 }
 
 function openOrderModal() {
-  patientId.value = ''
-  recordId.value = ''
-  records.value = []
-  orderForm.value = { testName: '', urgency: 'routine', indication: '', inventoryItemId: 'none' }
-  errorMessage.value = ''
-  isOrderModalOpen.value = true
-}
-
-async function createOrder() {
-  if (!patientId.value || !recordId.value || !orderForm.value.testName.trim()) return
-  isLoading.value = true
-  errorMessage.value = ''
-  try {
-    await window.electronAPI.labs.createOrder({
-      medical_record_id: Number(recordId.value),
-      patient_id: Number(patientId.value),
-      test_name: orderForm.value.testName.trim(),
-      urgency: orderForm.value.urgency,
-      clinical_indication: orderForm.value.indication.trim(),
-      inventory_item_id: orderForm.value.inventoryItemId !== 'none' ? Number(orderForm.value.inventoryItemId) : null,
-    })
-    isOrderModalOpen.value = false
-    await refresh()
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'تعذر إنشاء طلب الفحص.'
-  } finally {
-    isLoading.value = false
-  }
+  void router.push('/labs/new')
 }
 
 async function createResult() {
@@ -205,14 +163,12 @@ async function deleteOrder() {
   }
 }
 
-watch(patientId, loadRecords)
 onMounted(async () => {
   isLoading.value = true
   try {
     await Promise.all([
       loadOrders(),
       window.electronAPI.patients.list().then((rows) => { patients.value = rows }),
-      window.electronAPI.inventory.list().then((rows) => { inventoryItems.value = rows }),
     ])
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'تعذر تحميل صفحة المختبر.'
@@ -267,6 +223,5 @@ onMounted(async () => {
       </section>
     </div>
 
-    <UModal v-model:open="isOrderModalOpen" title="طلب فحص جديد"><template #body><form class="space-y-4" @submit.prevent="createOrder"><UFormField label="المراجع" required><USelect v-model="patientId" :items="patientItems" placeholder="اختر مراجعاً" class="w-full" /></UFormField><UFormField label="الزيارة الموثقة" required><USelect v-model="recordId" :items="recordItems" placeholder="اختر زيارة" class="w-full" :disabled="!patientId" /></UFormField><UFormField label="اسم الفحص" required><UInput v-model="orderForm.testName" class="w-full" /></UFormField><UFormField label="الأولوية"><USelect v-model="orderForm.urgency" :items="[{ label: 'روتيني', value: 'routine' }, { label: 'عاجل', value: 'urgent' }]" class="w-full" /></UFormField><UFormField label="صنف المخزون" description="عند الاختيار، تُخصم وحدة واحدة من المخزون وتُسجَّل كإيراد على حساب المراجع."><USelect v-model="orderForm.inventoryItemId" :items="inventoryItemItems" class="w-full" /></UFormField><UFormField label="السبب السريري"><UTextarea v-model="orderForm.indication" class="w-full" /></UFormField><p v-if="errorMessage" class="text-sm text-error">{{ errorMessage }}</p><div class="flex justify-end gap-2"><UButton color="neutral" variant="ghost" label="إلغاء" @click="isOrderModalOpen = false" /><UButton type="submit" icon="i-lucide-flask-conical" label="إنشاء الطلب" :loading="isLoading" :disabled="!patientId || !recordId || !orderForm.testName.trim()" /></div></form></template></UModal>
   </section>
 </template>

@@ -2,6 +2,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import SettingsGeneralView from './views/SettingsGeneralView.vue'
 import SettingsUsersView from './views/SettingsUsersView.vue'
 import SettingsDoctorsView from './views/SettingsDoctorsView.vue'
+import SettingsUserCreateView from './views/SettingsUserCreateView.vue'
 
 export const settingsRoutes: RouteRecordRaw[] = [
   {
@@ -11,6 +12,10 @@ export const settingsRoutes: RouteRecordRaw[] = [
   {
     path: '/settings/users',
     component: SettingsUsersView
+  },
+  {
+    path: '/settings/users/new',
+    component: SettingsUserCreateView
   },
   {
     path: '/settings/doctors',

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuth } from '@/modules/auth'
 import type { MedicalRecord, Patient, Prescription, PrescriptionStatus } from '@/modules/clinic-data'
 
 const { currentUser } = useAuth()
+const router = useRouter()
 const patients = ref<Patient[]>([])
 const allPrescriptions = ref<Prescription[]>([])
 const records = ref<MedicalRecord[]>([])
@@ -188,15 +190,6 @@ function removeMedicineRow(index: number) {
   }
 }
 
-function resetForm() {
-  form.value = {
-    patientId: patientId.value,
-    recordId: recordId.value,
-    medicines: [{ medicineName: '', dosage: '', frequency: '', durationDays: '', notes: '' }],
-    status: 'active',
-  }
-}
-
 const isFormValid = computed(() => {
   if (!form.value?.patientId || !form.value?.recordId || !form.value?.medicines) return false
   return form.value.medicines.some(
@@ -262,19 +255,8 @@ function clearPatientSelection() {
 }
 
 async function openCreate() {
-  editingId.value = null
-  resetForm()
-  const targetPatient = patientId.value || (patients.value.length > 0 ? String(patients.value[0].id) : '')
-  form.value.patientId = targetPatient
-  if (targetPatient) {
-    await loadModalRecords(Number(targetPatient))
-    if (recordId.value && modalRecords.value.some((r) => String(r.id) === recordId.value)) {
-      form.value.recordId = recordId.value
-    } else if (modalRecords.value.length > 0) {
-      form.value.recordId = String(modalRecords.value[0].id)
-    }
-  }
-  isModalOpen.value = true
+  const query = patientId.value ? `?patientId=${patientId.value}${recordId.value ? `&recordId=${recordId.value}` : ''}` : ''
+  void router.push(`/prescriptions/new${query}`)
 }
 
 async function openEdit(prescription: Prescription) {
@@ -606,7 +588,7 @@ onMounted(async () => {
     </div>
 
     <!-- Create / Edit Modal -->
-    <UModal v-model:open="isModalOpen" :title="editingId ? 'تعديل وصفة طبية' : 'وصفة طبية جديدة (إضافة أدوية)'">
+    <UModal v-if="editingId" v-model:open="isModalOpen" title="تعديل وصفة طبية">
       <template #body>
         <form class="space-y-4" @submit.prevent="savePrescription">
           <div class="grid gap-4 sm:grid-cols-2">

@@ -136,30 +136,8 @@ function moveDay(amount: number) {
   selectedDate.value = date.toISOString().slice(0, 10)
 }
 
-function resetForm() {
-  const now = new Date(`${selectedDate.value}T${new Date().toTimeString().slice(0, 5)}:00`)
-  const defaultDoc = doctors.value.length > 0 ? String(doctors.value[0].id) : ''
-  const defaultPat = patients.value.length > 0 ? String(patients.value[0].id) : ''
-
-  form.value = {
-    patientId: defaultPat,
-    doctorId: defaultDoc,
-    visitDate: localDateTime(now),
-    chiefComplaint: '',
-    diagnosis: '',
-    treatmentPlan: '',
-    clinicalNotes: '',
-    bloodPressure: '',
-    temperature: '',
-    weight: '',
-  }
-}
-
 function openCreateModal() {
-  editingVisit.value = null
-  resetForm()
-  errorMessage.value = ''
-  isModalOpen.value = true
+  void router.push('/appointments/new')
 }
 
 function openEditModal(visit: VisitWithPatient) {
@@ -461,7 +439,7 @@ onMounted(async () => {
     <p v-if="errorMessage && !isModalOpen" class="text-sm text-error">{{ errorMessage }}</p>
 
     <!-- Modal to Add/Edit Visit (Medical Record) -->
-    <UModal v-model:open="isModalOpen" :title="editingVisit ? 'تعديل الزيارة الطبية' : 'توثيق زيارة جديدة'">
+    <UModal v-if="editingVisit" v-model:open="isModalOpen" title="تعديل الزيارة الطبية">
       <template #body>
         <form class="space-y-4" @submit.prevent="saveVisit">
           <UFormField label="المراجع" required>
