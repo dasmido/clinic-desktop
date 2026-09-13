@@ -157,6 +157,7 @@ function createWindow() {
     width: 1100,
     height: 750,
     show: false,
+    icon: path.join(__dirname, '../dist/fc.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       nodeIntegration: false,

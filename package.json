@@ -21,6 +21,7 @@
   "build": {
     "appId": "dev.dasmido.clinicdesktop",
     "productName": "ClinicDesktop",
+    "icon": "public/fc.png",
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
