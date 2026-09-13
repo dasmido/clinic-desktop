@@ -5,6 +5,7 @@ export type DateOnly = ColumnType<string | null, string | null | undefined, stri
 
 export type UserRole = 'doctor' | 'nurse' | 'lab' | 'pharmacy' | 'moderator' | 'admin';
 export type AppointmentStatus = 'scheduled' | 'arrived' | 'completed' | 'cancelled';
+export type VisitStatus = 'scheduled' | 'arrived' | 'completed' | 'cancelled';
 
 export type UsersTable = {
   id: Generated<number>;
@@ -101,6 +102,7 @@ export type PatientMedicalRecordsTable = {
   doctor_id: number | null;
   recorded_by_user_id: number | null;
   visit_date: Timestamp;
+  status: ColumnType<VisitStatus, VisitStatus | undefined, VisitStatus>;
   chief_complaint: ColumnType<string, string | undefined, string>;
   diagnosis: ColumnType<string, string | undefined, string>;
   treatment_plan: ColumnType<string, string | undefined, string>;

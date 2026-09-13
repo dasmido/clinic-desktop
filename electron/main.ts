@@ -93,6 +93,7 @@ function registerMedicalRecordHandlers() {
   ipcMain.handle('medical-records:list-for-range', async (_event, from: string, to: string) => MedicalRecordsService.getMedicalRecordsForRange(from, to));
   ipcMain.handle('medical-records:create', async (_event, input) => MedicalRecordsService.createMedicalRecord(input));
   ipcMain.handle('medical-records:update', async (_event, recordId: number, input) => MedicalRecordsService.updateMedicalRecord(recordId, input));
+  ipcMain.handle('medical-records:update-status', async (_event, recordId: number, status) => MedicalRecordsService.updateMedicalRecordStatus(recordId, status));
   ipcMain.handle('medical-records:delete', async (_event, recordId: number) => MedicalRecordsService.deleteMedicalRecord(recordId));
   ipcMain.handle('medical-records:add-attachment', async (_event, input) => MedicalRecordsService.createAttachment(input));
   ipcMain.handle('medical-records:delete-attachment', async (_event, attachmentId: number) => MedicalRecordsService.deleteAttachment(attachmentId));

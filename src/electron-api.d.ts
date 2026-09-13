@@ -12,6 +12,7 @@ import type {
   InventoryItem,
   MedicalRecord,
   MedicalRecordAttachment,
+  VisitStatus,
   Patient,
   ClinicalAlert,
   ClinicalAlertSeverity,
@@ -201,6 +202,7 @@ declare global {
         listForRange(from: string, to: string): Promise<(MedicalRecord & { patient_name: string; patient_phone: string })[]>;
         create(input: MedicalRecordInput): Promise<MedicalRecord>;
         update(recordId: number, input: Omit<MedicalRecordInput, 'patient_id' | 'recorded_by_user_id'>): Promise<MedicalRecord>;
+        updateStatus(recordId: number, status: VisitStatus): Promise<MedicalRecord>;
         delete(recordId: number): Promise<boolean>;
         addAttachment(input: AttachmentInput): Promise<MedicalRecordAttachment>;
         deleteAttachment(attachmentId: number): Promise<boolean>;

@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import type { Database, PatientMedicalRecord, PatientRecordAttachment } from '../../src/database/types.js';
+import type { Database, PatientMedicalRecord, PatientRecordAttachment, VisitStatus } from '../../src/database/types.js';
 import { createTransaction } from './finance.repository.js';
 
 export type MedicalRecordWithAuthor = PatientMedicalRecord & { recorded_by_name: string | null; doctor_name: string | null };
@@ -132,6 +132,19 @@ export async function updateMedicalRecord(
   return db
     .updateTable('patient_medical_records')
     .set(record)
+    .where('id', '=', recordId)
+    .returningAll()
+    .executeTakeFirstOrThrow();
+}
+
+export async function updateMedicalRecordStatus(
+  db: Kysely<Database>,
+  recordId: number,
+  status: VisitStatus,
+): Promise<PatientMedicalRecord> {
+  return db
+    .updateTable('patient_medical_records')
+    .set({ status })
     .where('id', '=', recordId)
     .returningAll()
     .executeTakeFirstOrThrow();

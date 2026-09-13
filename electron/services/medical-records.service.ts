@@ -1,4 +1,5 @@
 import { getDatabase } from '../database.js';
+import type { VisitStatus } from '../../src/database/types.js';
 import {
   createAttachment as repoCreateAttachment,
   createMedicalRecord as repoCreateMedicalRecord,
@@ -8,6 +9,7 @@ import {
   listMedicalRecordsByPatient,
   listMedicalRecordsForRange,
   updateMedicalRecord as repoUpdateMedicalRecord,
+  updateMedicalRecordStatus as repoUpdateMedicalRecordStatus,
   type CreateAttachmentInput,
   type CreateMedicalRecordInput,
   type UpdateMedicalRecordInput,
@@ -38,6 +40,12 @@ export async function updateMedicalRecord(recordId: number, input: UpdateMedical
   assertSignedIn();
   const db = await getDatabase();
   return repoUpdateMedicalRecord(db, recordId, input);
+}
+
+export async function updateMedicalRecordStatus(recordId: number, status: VisitStatus) {
+  assertSignedIn();
+  const db = await getDatabase();
+  return repoUpdateMedicalRecordStatus(db, recordId, status);
 }
 
 export async function deleteMedicalRecord(recordId: number) {

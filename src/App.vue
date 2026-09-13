@@ -81,7 +81,7 @@ onMounted(() => {
     <div v-else class="flex flex-1 h-screen">
       <AppSidebar v-model:open="open" />
 
-      <div class="flex-1 flex flex-col">
+      <div class="flex min-w-0 flex-1 flex-col">
         <div class="h-(--ui-header-height) shrink-0 flex items-center px-4 border-b border-default">
           <UButton
             icon="i-lucide-panel-left"
@@ -92,7 +92,7 @@ onMounted(() => {
           />
         </div>
 
-        <main class="flex-1 overflow-auto p-4">
+        <main class="min-w-0 flex-1 overflow-auto p-4">
           <RouterView />
         </main>
       </div>
