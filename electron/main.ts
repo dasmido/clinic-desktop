@@ -223,20 +223,25 @@ app.whenReady().then(() => {
   registerClinicalAlertHandlers();
   registerSettingsHandlers();
 
-  // Dev server needs 'unsafe-eval' + a websocket connect-src for Vite HMR, so only
-  // enforce a strict CSP once packaged (loadFile, no VITE_DEV_SERVER_URL).
-  if (!process.env.VITE_DEV_SERVER_URL) {
-    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-      callback({
-        responseHeaders: {
-          ...details.responseHeaders,
-          'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self';",
-          ],
-        },
-      });
+  const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+  const connectSources = devServerUrl
+    ? (() => {
+        const url = new URL(devServerUrl);
+        const websocketProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `connect-src 'self' ${url.origin} ${websocketProtocol}//${url.host};`;
+      })()
+    : "connect-src 'self';";
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; ${connectSources} object-src 'none'; base-uri 'self';`,
+        ],
+      },
     });
-  }
+  });
 
   createWindow();
   // Boot Postgres in parallel; IPC handlers await the shared startup promise as needed.

@@ -1,5 +1,6 @@
 import { createApp } from 'vue';
 import ui from '@nuxt/ui/vue-plugin';
+import 'virtual:nuxt-icon-bundle/register';
 
 import App from './App.vue';
 import { i18n } from './i18n';
