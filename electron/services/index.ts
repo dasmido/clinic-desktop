@@ -1,0 +1,13 @@
+export * as AuthService from './auth.service.js';
+export * as SettingsService from './settings.service.js';
+export * as PatientsService from './patients.service.js';
+export * as AppointmentsService from './appointments.service.js';
+export * as DoctorsService from './doctors.service.js';
+export * as InventoryService from './inventory.service.js';
+export * as FinanceService from './finance.service.js';
+export * as MedicalRecordsService from './medical-records.service.js';
+export * as PrescriptionsService from './prescriptions.service.js';
+export * as LabsService from './labs.service.js';
+export * as VisitTemplatesService from './visit-templates.service.js';
+export * as ClinicalAlertsService from './clinical-alerts.service.js';
+export * as PatientFilesService from './patient-files.service.js';
